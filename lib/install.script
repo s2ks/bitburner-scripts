@@ -1,0 +1,15 @@
+export function install(script, host) {
+	if(hasRootAccess(host)) {
+		kill(script, host);
+
+		var free = getServerMaxRam(host) - getServerUsedRam(host);
+		var threadAllow = Math.floor(free / getScriptRam(script));
+
+		if(threadAllow > 0) {
+			scp(script, host);
+			exec(script, host, threadAllow);
+		}
+	}
+}
+
+/* vim: ft=javascript */

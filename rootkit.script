@@ -1,0 +1,66 @@
+import install from "/lib/install.script";
+import scanner from "/lib/scanner.script";
+
+/*TODO rewrite this in ns2*/
+
+/* Recursively connect to servers and attempt to gain root access */
+server = getHostname();
+
+action = [
+	brutessh,
+	httpworm,
+	sqlinject,
+	relaysmtp,
+	ftpcrack,
+];
+
+prog = [
+	"BruteSSH.exe",
+	"HTTPWorm.exe",
+	"SQLInject.exe",
+	"relaySMTP.exe",
+	"FTPCrack.exe",
+];
+
+function tryGainRoot(host) {
+	var reqlvl = getServerRequiredHackingLevel(host);
+	var curlvl = getHackingLevel();
+
+	/* do we have a high enough hacking level for nuke() ? */
+	if(curlvl < reqlvl) {
+		printf("Insufficient hacking level to elevate %s (have %d, need %d)", host, curlvl, reqlvl);
+		return false;
+	}
+
+	var ports = getServerNumPortsRequired(host);
+
+	for(var i = 0; i < action.length; i++) {
+		if(fileExists(prog[i])) {
+			action[i](host);
+			ports--;
+		}
+	}
+
+	if(ports > 0) {
+		printf("Unable to open the required number of ports on %s (%d ports to left to open)", host, ports)
+		return false;
+	}
+
+	if(fileExists("NUKE.exe", server)) {
+		nuke(host);
+		return true;
+	} else {
+		return false;
+	}
+}
+
+while(1) {
+	scanner(server, "", function(host) {
+		if(hasRootAccess(host) == false) {
+			tryGainRoot(host);
+		}
+	});
+	sleep(300*1000);
+}
+
+/* vim: ft=javascript */

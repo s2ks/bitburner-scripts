@@ -1,0 +1,25 @@
+/* recursive server scanner */
+
+function doScan(host, src) {
+	var names = scan(host);
+
+	var portReq = getServerNumPortsRequired(host);
+	var lvlReq = getServerRequiredHackingLevel(host);
+
+	tprintf("%s:", host);
+	tprintf("\t-Root: %s",hasRootAccess(host) ? "Yes" : "No");
+	tprintf("\t-Open port requirement: %d", portReq);
+	tprintf("\t-Hacker level requirement: %d", lvlReq);
+	tprintf("\t-Connection origin: %s", src);
+
+	for(n in names) {
+		if(names[n] == src) {
+			continue;
+		}
+		doScan(names[n], host);
+	}
+}
+
+doScan(getHostname(), "");
+
+/* vim: ft=javascript */

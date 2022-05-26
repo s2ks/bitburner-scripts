@@ -6,6 +6,7 @@ const solvers = {
 	"Spiralize Matrix": 		solveSpiralMatrix,
 	"Array Jumping Game": 		solveArrayJump,
 	"Total Ways to Sum II": 	solveWaysToSum2,
+	"HammingCodes: Encoded Binary to Integer": solveHammingCodes,
 };
 
 export function autocomplete(data, arg) {
@@ -16,6 +17,47 @@ export function autocomplete(data, arg) {
 		"--info",
 		...data.servers,
 	];
+}
+
+/* Hamming codes -> see https://www.youtube.com/watch?v=X8jsijhllIA
+ * In this instance there is 1 possible error */
+export function solveHammingCodes(data) {
+	let err = 0;
+
+	let bits = [];
+
+	for(const i in data) {
+		const bit = parseInt(data[i]);
+		bits[i] = bit;
+
+		if(bit) {
+			err ^= i;
+		}
+	}
+
+	/* If err != 0 then it spells out the index
+	 * of the bit that was flipped */
+	if(err) {
+		bits[err] = !bits[err];
+	}
+
+	/* Now we have to read the message, bit 0 is unused (it's the overall parity bit
+	 * which we don't care about and all bits at and index that is a power of 2 is
+	 * a parity bit and not part of the actual message. */
+
+	let n = 0;
+	let p = 0;
+
+	for(let i = 1; i < data.length; i++) {
+		if(i & (i - 1) == 0) {
+			/* i is a power of two so it's a parity bit */
+			continue;
+		} else {
+			n |= 1 << p++ ;
+		}
+	}
+
+	return n.toString();
 }
 
 

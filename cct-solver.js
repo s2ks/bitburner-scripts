@@ -42,22 +42,28 @@ export function solveHammingCodes(data) {
 	}
 
 	/* Now we have to read the message, bit 0 is unused (it's the overall parity bit
-	 * which we don't care about and all bits at and index that is a power of 2 is
+	 * which we don't care about). Each bit at an index that is a power of 2 is
 	 * a parity bit and not part of the actual message. */
 
-	let n = 0;
-	let p = 0;
+	//let n = 0;
+	//let p = 0;
+
+	let ans = '';
 
 	for(let i = 1; i < bits.length; i++) {
-		if(i & (i - 1) == 0) {
-			/* i is a power of two so it's a parity bit */
-			continue;
-		} else {
-			n |= 1 << p++ ;
+		/* i is not a power of two so it's not a parity bit */
+		if((i & (i - 1)) != 0) {
+			//n |= bits[i] << p++; // this assumes consistent endianness
+			ans += bits[i];
 		}
 	}
 
-	return n.toString();
+	/* Confusingly, the endianness of the message contained inside
+	 * the hamming code is flipped. Index 0 of the string representation
+	 * of the hamming code is the overall parity bit (so LSB). Whereas the
+	 * first bit of the message is actually the MSB */
+	return parseInt(ans, 2).toString();
+	//return n.toString();
 }
 
 
@@ -71,7 +77,7 @@ export function findWaysToSumSet(n, s) {
 
 	for(let i = 0; i < s.length; i++) {
 		if(n - s[i] > 0) {
-			let subways = findWaysToSumSet(n - s[i], s);
+			let subways = findWaysToSumSet(n - s[i], s.slice(i));
 
 			for(const way of subways) {
 				ways.push([s[i]].concat(way));
@@ -88,31 +94,7 @@ export function findWaysToSumSet(n, s) {
 export function solveWaysToSum2(data) {
 	let ways = findWaysToSumSet(data[0], data[1]);
 
-	/* Sort to make comparison easier */
-	for(let i = 0; i < ways.length; i++) {
-		if(Array.isArray(ways[i])) {
-			ways[i].sort((a, b) => a - b);
-		}
-	}
-
 	console.log(ways);
-
-	for(let i = 0; i < ways.length; i++) {
-		for(let j = i + 1; j < ways.length; j++) {
-			let eq = true;
-			for(let k = 0; k < ways[i].length; k++) {
-				if(ways[i][k] != ways[j][k]) {
-					eq = false;
-					break;
-				}
-			}
-
-			if(eq == true) {
-				ways.splice(j, 1);
-				j = i;
-			}
-		}
-	}
 
 	return ways.length;
 }

@@ -21,5 +21,3 @@ function doScan(host, src) {
 }
 
 doScan(getHostname(), "");
-
-/* vim: ft=javascript */

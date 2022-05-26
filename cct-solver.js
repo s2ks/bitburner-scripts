@@ -4,6 +4,8 @@ const solvers = {
 	"Total Ways to Sum": 		findWaysToSumSolver,
 	"Unique Paths in a Grid I": 	solveUniquePaths,
 	"Spiralize Matrix": 		solveSpiralMatrix,
+	"Array Jumping Game": 		solveArrayJump,
+	"Total Ways to Sum II": 	solveWaysToSum2,
 };
 
 export function autocomplete(data, arg) {
@@ -16,14 +18,124 @@ export function autocomplete(data, arg) {
 	];
 }
 
+
+/* How many different ways can the number n
+ * be written using only numbers contained in
+ * the set s? */
+export function findWaysToSumSet(n, s) {
+	/* Just brute force every possible combination
+	 * how big could the set possibly be? */
+	let ways = [];
+
+	for(let i = 0; i < s.length; i++) {
+		if(n - s[i] > 0) {
+			let subways = findWaysToSumSet(n - s[i], s);
+
+			for(const way of subways) {
+				ways.push([s[i]].concat(way));
+			}
+
+		} else if (n == s[i]) {
+			ways.push([s[i]]);
+		}
+	}
+
+	return ways;
+}
+
+export function solveWaysToSum2(data) {
+	let ways = findWaysToSumSet(data[0], data[1]);
+
+	/* Sort to make comparison easier */
+	for(let i = 0; i < ways.length; i++) {
+		if(Array.isArray(ways[i])) {
+			ways[i].sort((a, b) => a - b);
+		}
+	}
+
+	console.log(ways);
+
+	for(let i = 0; i < ways.length; i++) {
+		for(let j = i + 1; j < ways.length; j++) {
+			let eq = true;
+			for(let k = 0; k < ways[i].length; k++) {
+				if(ways[i][k] != ways[j][k]) {
+					eq = false;
+					break;
+				}
+			}
+
+			if(eq == true) {
+				ways.splice(j, 1);
+				j = i;
+			}
+		}
+	}
+
+	return ways.length;
+}
+
+/* We are given an array of integers
+ * each integer tells us the maximum jump distance
+ * from the current position in the array.
+ *
+ * We need to find out if it is possible to reach the last
+ * element of the array. */
+export function solveArrayJump(data) {
+	const maxJmp = data[0];
+
+	if(data.length == 1) {
+		return 1;
+	}
+
+	if(maxJmp == 0) {
+		return 0;
+	}
+
+	let r = 0;
+
+	/* Try every possible jump option and see what sticks */
+	for(let i = maxJmp; i > 0; i--) {
+		if(i < data.length) {
+			r += solveArrayJump(data.slice(i));
+		}
+
+		if(r > 0) {
+			break;
+		}
+	}
+
+	return r > 0 ? 1 : 0;
+}
+
 /*
  * [
- * 	[1, 2, 3]
- * 	[4, 5, 6]
- * 	[7, 8, 9]
+ * 		[1, 2, 3]
+ * 		[4, 5, 6]
+ * 		[7, 8, 9]
  * ]
  *
- * -> [1, 2, 3, 6, 9, 8, 7, 4, 5]
+ * [
+ * 		[ 1,  2,  3,  4]
+ * 		[ 5,  6,  7,  8]
+ * 		[ 9, 10, 11, 12]
+ * 		[13, 14, 15, 16]
+ * 		[17, 18, 19, 20]
+ * ]
+ *
+ * -> flatten index using modulos?
+ *
+ * m[0][2] = [2] = 3
+ * m[1][2] = [3] = 6
+ * m[2][2] = [4] = 9
+ * m[2][1] = [5] = 8
+ * m[2][0] = [6] = 7
+ * m[1][0] = [7] = 4
+ * m[1][1] = [8] = 5
+ *
+ * 	-> [1, 2, 3, 6, 9, 8, 7, 4, 5]
+ *
+ * nvm
  */
 
 export function solveSpiralMatrix(data) {
@@ -42,15 +154,20 @@ export function solveSpiralMatrix(data) {
 	};
 
 	/*
-	 * right 	-> T(1, 0)
-	 * down 	-> T(0, 1)
-	 * left 	-> T(-1, 0)
-	 * up 		-> T(0, -1)
-	 *
-	 * x 	1 		0 		-1 		 0
-	 * 	 	->		->		->
-	 * y 	0 		1 		 0 		-1
-	 */
+	*
+	* right 	-> T(1, 0)
+	* down 		-> T(0, 1)
+	* left 		-> T(-1, 0)
+	* up 		-> T(0, -1)
+	*
+	* x 	1 		0 		-1 		 0
+	* 		->		->		->
+	* y 	0 		1 		 0 		-1
+	*
+	* Notice how dx and dy alternate between being zero and non-zero and
+	* notice how a non-zero value in y gets flipped.
+	*
+	*/
 
 	for(let i = 0; i < len; i++) {
 
@@ -95,7 +212,7 @@ export function findUniquePaths(grid, pos) {
 	let paths = 0;
 
 	if(pos[X] < grid[X] - 1) {
-		/* Move right */
+		/** Move right */
 		let nextPos = pos.slice();
 		nextPos[X] += 1;
 		paths += findUniquePaths(grid, nextPos)
@@ -188,6 +305,7 @@ export function findMaxPrimeFraction(n) {
  *
  * 1 <= k < n
  *
+ *
  * let n = 6
  * let k = n - 1
  *
@@ -211,6 +329,7 @@ export function findMaxPrimeFraction(n) {
 
 let SUM_TABLE = [];
 
+/** @param {NS} ns */
 export function findWaysToSum(n, k) {
 	let tb = SUM_TABLE;
 
@@ -249,8 +368,7 @@ export function findWaysToSum(n, k) {
 
 	/* Save previously computed ways to sum a number n with a given height
 	 * So we don't have to do it again. With larger numbers the performance
-	 * benefit is significant.
-	 */
+	 * benefit is significant. */
 	if(tb[height - 1][n] == undefined) {
 		tb[height - 1][n] = findWaysToSum(n, height - 1);
 	}
@@ -271,7 +389,7 @@ function findWaysToSumSolver(data) {
 	return findWaysToSum(n, k);
 }
 
-/* @param {NS} ns */
+/** @param {NS} ns */
 export async function main(ns) {
 	const opt = ns.flags([
 		['contract', ""],

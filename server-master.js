@@ -16,6 +16,8 @@ export async function main(ns) {
 	while(1) {
 		let data = ns.readPort(1);
 
+		await ns.sleep(0);
+
 		if(data == NODATA) {
 			await ns.sleep(500);
 			continue;
@@ -36,9 +38,9 @@ export async function main(ns) {
 				if(Date.now() - start >= 1000) {
 					const income = ns.getScriptIncome(data.script, data.host, ...data.args);
 
-					if(income < 0) {
-						ns.tprint("[SERVER-MASTER] INCOME < 0 ERROR");
-						ns.exit();
+					if(income <= 0) {
+						ns.print("[SERVER-MASTER] INCOME <= 0");
+						break;
 					}
 
 					profit += income;
@@ -46,8 +48,14 @@ export async function main(ns) {
 
 					ram = maxRam;
 
-					while(ns.getPurchasedServerCost(ram) / income > 1800) {
+					/** What's the best server we can buy with the money that we would make in 30 minutes? */
+					while(ns.getPurchasedServerCost(ram) / income > 1800 && ram >= 2) {
 						ram /= 2;
+					}
+
+					if(ram < 2) {
+						ns.clearPort(1);
+						break;
 					}
 
 					ns.printf("Script profit: %s out of required %s", ns.nFormat(profit, '0.00a'),

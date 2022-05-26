@@ -1,8 +1,6 @@
 import install from "/lib/install.script";
 import scanner from "/lib/scanner.script";
 
-/*TODO rewrite this in ns2*/
-
 /* Recursively connect to servers and attempt to gain root access */
 server = getHostname();
 

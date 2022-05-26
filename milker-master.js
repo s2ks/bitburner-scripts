@@ -19,8 +19,9 @@ var LAST_UPGRADE = null;
 
 var PROG = [];
 
-/** @param {NS} ns */
-function serverUpgrader(ns) {
+/* TODO */
+/* @param {NS} ns */
+async function serverUpgrader(ns) {
 	if(LAST_UPGRADE != null) {
 		if(Date.now() - LAST_UPGRADE < 1800*1000) {
 			return;
@@ -34,14 +35,15 @@ function serverUpgrader(ns) {
 		mesg: "THREAD_LIMITED",
 	};
 
-	ns.writePort(1, btoa(JSON.stringify(data)));
+	/** Write to server-master.js (TODO) */
+	await ns.writePort(1, btoa(JSON.stringify(data)));
 
 	LAST_UPGRADE = Date.now();
 }
 
 /* Get the total number of threads across all servers in
 `hosts` we could theoretically use to run `prog` */
-/** @param {NS} ns */
+/* @param {NS} ns */
 function getThreadAvail(ns, hosts, prog) {
 	var t = 0;
 	for(const host of hosts) {
@@ -51,11 +53,12 @@ function getThreadAvail(ns, hosts, prog) {
 	return t;
 }
 
-/** @param {NS} ns */
+/* @param {NS} ns */
 function getWeakenTargets(ns, hosts, threadsAvail, threadsMax) {
 	var threads = {};
 
 	if(threadsAvail == 0) {
+		THREAD_LIMITED = 1;
 		return {};
 	}
 
@@ -71,7 +74,8 @@ function getWeakenTargets(ns, hosts, threadsAvail, threadsMax) {
 	});
 
 	for(const host of sortedHosts) {
-		if(threadsAvail == 0) {
+		if(threadsAvail <= 0) {
+			THREAD_LIMITED = 1;
 			break;
 		}
 		const minSec = ns.getServerMinSecurityLevel(host);
@@ -86,11 +90,12 @@ function getWeakenTargets(ns, hosts, threadsAvail, threadsMax) {
 	return threads;
 }
 
-/** @param {NS} ns */
+/* @param {NS} ns */
 function getGrowTargets(ns, hosts, threadsAvail, maxThreads) {
 	var threads = {};
 
 	if(threadsAvail == 0) {
+		THREAD_LIMITED = 1;
 		return {};
 	}
 
@@ -98,6 +103,7 @@ function getGrowTargets(ns, hosts, threadsAvail, maxThreads) {
 
 	sortedHosts = sortedHosts.filter(host => ns.getServerMoneyAvailable(host) > 0);
 	sortedHosts = sortedHosts.filter(host => ns.getServerMaxMoney(host) > 0);
+	sortedHosts = sortedHosts.filter(host => ns.getServer(host).purchasedByPlayer == false);
 
 	sortedHosts.sort((a, b) => {
 		var aToGrow = ns.getServerMaxMoney(a) / ns.getServerMoneyAvailable(a);
@@ -113,7 +119,8 @@ function getGrowTargets(ns, hosts, threadsAvail, maxThreads) {
 	});
 
 	for(var host of sortedHosts) {
-		if(threadsAvail == 0) {
+		if(threadsAvail <= 0) {
+			THREAD_LIMITED = 1;
 			break;
 		}
 		const maxBal = ns.getServerMaxMoney(host);
@@ -121,6 +128,9 @@ function getGrowTargets(ns, hosts, threadsAvail, maxThreads) {
 		/* bal * grow = maxBal
 		grow = maxBal / bal */
 		const toGrow = maxBal / bal;
+
+		//ns.print(host, " IN getGrowTargets loop ", maxBal, " / ", bal );
+
 		var calls = ns.growthAnalyze(host, toGrow);
 
 		calls = calls > threadsAvail ? threadsAvail : calls;
@@ -133,7 +143,7 @@ function getGrowTargets(ns, hosts, threadsAvail, maxThreads) {
 
 /* get the maximum amount of money we can earn from this
 server within certain parameters */
-/** @param {NS} ns */
+/* @param {NS} ns */
 function getHackInfo(ns, host, maxThreads) {
 	const max = ns.getServerMaxMoney(host);
 	const bal = ns.getServerMoneyAvailable(host);
@@ -153,7 +163,7 @@ function getHackInfo(ns, host, maxThreads) {
 		return best;
 	}
 
-	/** The goal is to earn the maximum amount of money per thread
+	/* The goal is to earn the maximum amount of money per thread
 	 * So we want to find for what number of threads we get the maximum amount
 	 * of money per thread for a given host.
 	 *
@@ -168,14 +178,18 @@ function getHackInfo(ns, host, maxThreads) {
 	 * next_bal = bal - profit
 	 * profit = hack_amount * hack_threads
 	 *
-	*/
+	 */
 
 	/* profit = hackAmount * threads = bal
 	threads = bal / hackAmount
 	*/
 
+	if(hackAmount <= 0) {
+		return best;
+	}
+
 	threads = Math.floor(bal / hackAmount);
-	threads = threads > maxThreads ? maxThreads : threads;
+	//threads = threads > maxThreads ? maxThreads : threads;
 
 	var profit = hackAmount * threads;
 
@@ -187,14 +201,22 @@ function getHackInfo(ns, host, maxThreads) {
 		return best;
 	}
 
+	if(threads == 0) {
+		return best;
+	}
+
 	const weakenSec = ns.weakenAnalyze(1);
 	const hackTime = ns.getHackTime(host);
+	const hackChance = ns.hackAnalyzeChance(host);
 	const growTime = ns.getGrowTime(host);
 	const weakenTime = ns.getWeakenTime(host);
 
 
-	/* Attempt to find the best profit rate -> total hack amount per
-	 * unit of time it takes to recover the server from the hack. */
+	/** We're looking for the best hack-thread to recover-thread ratio */
+
+	/** TODO what we actually want is the most money per second AKA profit
+	 * rate, we want to compute the profit rate for the given host
+	 */
 	for(let i = 1; i < 100; i++) {
 		let t = Math.max(Math.floor(threads * (i / 100)), 1);
 
@@ -204,7 +226,7 @@ function getHackInfo(ns, host, maxThreads) {
 		let weaken_threads = sec_increase / weakenSec;
 		let total_threads = t + grow_threads + weaken_threads;
 
-		let ratio = (hackAmount * t) / (hackTime + growTime + weakenTime);
+		let ratio = ((hackAmount * t) / (hackTime + growTime + weakenTime)) * hackChance;
 
 		if(ratio > best.ratio && total_threads < maxThreads) {
 			best.ratio = ratio;
@@ -224,6 +246,7 @@ function getHackTargets(ns, hosts, threadsAvail, targeted) {
 	var targets = {};
 
 	if(threadsAvail == 0) {
+		THREAD_LIMITED = 1;
 		return {};
 	}
 
@@ -231,20 +254,11 @@ function getHackTargets(ns, hosts, threadsAvail, targeted) {
 	sortedHosts = sortedHosts.filter(a => ns.getServerMoneyAvailable(a) > 0);
 	sortedHosts = sortedHosts.filter(a => getHackInfo(ns, a, threadsAvail).profit > 0);
 	sortedHosts = sortedHosts.filter(a => targeted.includes(a) == false);
+	sortedHosts = sortedHosts.filter(a => ns.getServer(a).purchasedByPlayer == false);
 
 	/* Sort by profit rate multiplied by the chance for a successful hack */
 	sortedHosts.sort((a, b) => {
-		var aProf = getHackInfo(ns, a, threadsAvail).profit;
-		var bProf = getHackInfo(ns, b, threadsAvail).profit;
-
-		var aThreads = ns.hackAnalyze(a, aProf);
-		var bThreads = ns.hackAnalyze(b, bProf);
-
-		/* Profit rate -> hackChance percentage of money per thread per unit of time */
-		const aProfRate = ((aProf / aThreads) / ns.getHackTime(a)) * ns.hackAnalyzeChance(a);
-		const bProfRate = ((bProf / bThreads) / ns.getHackTime(b)) * ns.hackAnalyzeChance(b);
-
-		return bProfRate - aProfRate;
+		return getHackInfo(ns, b).ratio - getHackInfo(ns, a).ratio;
 	});
 
 
@@ -253,8 +267,8 @@ function getHackTargets(ns, hosts, threadsAvail, targeted) {
 
 		threadsAvail -= hackInfo.hack_threads + hackInfo.grow_threads + hackInfo.weaken_threads;
 
-		if(threadsAvail < 0) {
-			THREAD_LIMITED = -threadsAvail;
+		if(threadsAvail <= 0) {
+			THREAD_LIMITED = 1;
 			break;
 		}
 
@@ -372,8 +386,28 @@ export async function main(ns) {
 			hosts.push(host);
 		});
 
-		hosts = hosts.filter(host => host != "home");
+		//hosts = hosts.filter(host => host != "home");
 		hosts = hosts.filter(host => ns.hasRootAccess(host));
+		hosts.sort((a, b) => {
+			/* true - false > 0
+			 * false - true < 0
+			 * true - true = 0
+			 * false - false = 0
+			 *
+			 * You get the idea.
+			 */
+
+			/* We want home to be last in the hosts list so it will
+			be used last to install scripts on.
+
+			But we want the purchased servers to be first in the
+			list so they will be used first to install scripts on. */
+			if(a == "home" || b == "home") {
+				return (a == "home") - (b == "home");
+			} else {
+				return (ns.getServer(b).purchasedByPlayer) - (ns.getServer(a).purchasedByPlayer);
+			}
+		});
 
 
 		/* TODO hack(), grow() and weaken() calls take a known time to complete
@@ -473,7 +507,7 @@ export async function main(ns) {
 		targets[hackprog] = getHackTargets(ns, hosts, availThreads[hackprog], targeted);
 
 		if(THREAD_LIMITED) {
-			serverUpgrader(ns);
+			await serverUpgrader(ns);
 			THREAD_LIMITED = 0;
 		}
 

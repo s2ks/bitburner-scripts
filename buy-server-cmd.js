@@ -1,4 +1,4 @@
-/** @param {NS} ns */
+/* @param {NS} ns */
 export async function main(ns) {
 	const pid = ns.args[0];
 
@@ -9,5 +9,6 @@ export async function main(ns) {
 		mesg: "THREAD_LIMITED",
 	};
 
+	/* Write to server-master.js (TODO) */
 	ns.writePort(1, btoa(JSON.stringify(data)));
 }

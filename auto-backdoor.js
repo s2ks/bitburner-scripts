@@ -1,6 +1,6 @@
 import {netscan} from "/lib/scanner.js";
 
-async function enterCommand(ns, cmd) {
+export async function enterCommand(ns, cmd) {
 	const terminalInput = document.getElementById("terminal-input");
 
 	/* wait for the previous command to finish */

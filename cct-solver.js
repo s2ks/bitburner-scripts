@@ -73,6 +73,9 @@ export function solveHammingCodes(data) {
 export function findWaysToSumSet(n, s) {
 	/* Just brute force every possible combination
 	 * how big could the set possibly be? */
+
+	/* TODO we don't actually need to save every possible combination, a simple counter
+	 * will do */
 	let ways = [];
 
 	for(let i = 0; i < s.length; i++) {

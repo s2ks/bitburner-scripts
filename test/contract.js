@@ -1,7 +1,7 @@
 import {
 	solveArrayJump, findWaysToSumSet, solveWaysToSum2,
 	solveHammingCodes,
-	} from "../cct-solver.js";
+	} from "/cct-solver.js";
 
 
 
@@ -11,12 +11,16 @@ function testArrayJump() {
 	console.log(solveArrayJump(data));
 }
 
+function testWaysToSum2() {
+	const data = [123, [2, 6, 8, 9, 11, 13, 15, 16]];
+
+	console.log(solveWaysToSum2(data));
+}
+
 /** @param {NS} ns */
 export async function main(ns) {
 
-	//console.log(solveWaysToSum2([13, [2,4,5,6,7,8,9,10,11,12,13]]));
-
-	const code = '100101000010100';
-	console.log(solveHammingCodes());
-
+	testWaysToSum2();
+	//const code = '100101000010100';
+	//console.log(solveHammingCodes(code));
 }

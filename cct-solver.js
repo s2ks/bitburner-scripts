@@ -48,7 +48,7 @@ export function solveHammingCodes(data) {
 	let n = 0;
 	let p = 0;
 
-	for(let i = 1; i < data.length; i++) {
+	for(let i = 1; i < bits.length; i++) {
 		if(i & (i - 1) == 0) {
 			/* i is a power of two so it's a parity bit */
 			continue;

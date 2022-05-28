@@ -7,6 +7,7 @@ const solvers = {
 	"Array Jumping Game": 		solveArrayJump,
 	"Total Ways to Sum II": 	solveWaysToSum2,
 	"HammingCodes: Encoded Binary to Integer": solveHammingCodes,
+	"HammingCodes: Integer to Encoded Binary": solveHammingEncode,
 };
 
 export function autocomplete(data, arg) {
@@ -17,6 +18,58 @@ export function autocomplete(data, arg) {
 		"--info",
 		...data.servers,
 	];
+}
+
+/* NOTE: this produces invalid hamming codes, but it's what the contract wants. */
+function solveHammingEncode(data) {
+	let enc = [0];
+	const data_bits = data.toString(2).split("").reverse();
+
+	data_bits.forEach((e, i, a) => {
+		a[i] = parseInt(e);
+	});
+
+	let k = data_bits.length;
+
+	for (let i = 1; k > 0; i++) {
+		if ((i & (i - 1)) != 0) {
+			enc[i] = data_bits[--k];
+		} else {
+			enc[i] = 0;
+		}
+	}
+
+	let parity = 0;
+
+	/* Figure out the subsection parities */
+	for (let i = 0; i < enc.length; i++) {
+		if (enc[i]) {
+			parity ^= i;
+		}
+	}
+
+	parity = parity.toString(2).split("").reverse();
+	parity.forEach((e, i, a) => {
+		a[i] = parseInt(e);
+	});
+
+	/* Set the parity bits accordingly */
+	for (let i = 0; i < parity.length; i++) {
+		enc[2 ** i] = parity[i] ? 1 : 0;
+	}
+
+	parity = 0;
+	/* Figure out the overall parity for the entire block */
+	for (let i = 0; i < enc.length; i++) {
+		if (enc[i]) {
+			parity++;
+		}
+	}
+
+	/* Finally set the overall parity bit */
+	enc[0] = parity % 2 == 0 ? 0 : 1;
+
+	return enc.join("");
 }
 
 /* Hamming codes -> see https://www.youtube.com/watch?v=X8jsijhllIA
@@ -38,22 +91,18 @@ export function solveHammingCodes(data) {
 	/* If err != 0 then it spells out the index
 	 * of the bit that was flipped */
 	if(err) {
-		bits[err] = !bits[err];
+		bits[err] = bits[err] ? 0 : 1;
 	}
 
 	/* Now we have to read the message, bit 0 is unused (it's the overall parity bit
 	 * which we don't care about). Each bit at an index that is a power of 2 is
 	 * a parity bit and not part of the actual message. */
 
-	//let n = 0;
-	//let p = 0;
-
 	let ans = '';
 
 	for(let i = 1; i < bits.length; i++) {
 		/* i is not a power of two so it's not a parity bit */
 		if((i & (i - 1)) != 0) {
-			//n |= bits[i] << p++; // this assumes consistent endianness
 			ans += bits[i];
 		}
 	}
@@ -63,7 +112,6 @@ export function solveHammingCodes(data) {
 	 * of the hamming code is the overall parity bit (so LSB). Whereas the
 	 * first bit of the message is actually the MSB */
 	return parseInt(ans, 2).toString();
-	//return n.toString();
 }
 
 
@@ -74,20 +122,13 @@ export function findWaysToSumSet(n, s) {
 	/* Just brute force every possible combination
 	 * how big could the set possibly be? */
 
-	/* TODO we don't actually need to save every possible combination, a simple counter
-	 * will do */
-	let ways = [];
+	let ways = 0;
 
 	for(let i = 0; i < s.length; i++) {
 		if(n - s[i] > 0) {
-			let subways = findWaysToSumSet(n - s[i], s.slice(i));
-
-			for(const way of subways) {
-				ways.push([s[i]].concat(way));
-			}
-
+			ways += findWaysToSumSet(n - s[i], s.slice(i));
 		} else if (n == s[i]) {
-			ways.push([s[i]]);
+			ways++;
 		}
 	}
 
@@ -95,11 +136,7 @@ export function findWaysToSumSet(n, s) {
 }
 
 export function solveWaysToSum2(data) {
-	let ways = findWaysToSumSet(data[0], data[1]);
-
-	console.log(ways);
-
-	return ways.length;
+	return findWaysToSumSet(data[0], data[1]);
 }
 
 /* We are given an array of integers

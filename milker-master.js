@@ -448,25 +448,18 @@ export async function main(ns) {
 
 		*/
 
+		if(THREAD_LIMITED) {
+			await serverUpgrader(ns);
+			THREAD_LIMITED = 0;
+		}
+
 		availThreads[weakprog] = getThreadAvail(ns, hosts, weakprog);
 		targets[weakprog] = getWeakenTargets(ns, hosts, availThreads[weakprog]);
 
 		for(const target in targets[weakprog]) {
-			var started = 0;
-			for(const host of hosts) {
-				if(targets[weakprog][target] > 0 && targeted.includes(target) == false) {
-					const start = await install(ns, weakprog, host, targets[weakprog][target], target);
-					targets[weakprog][target] -= start;
-					started += start;
+			let started = await installProg(ns, weakprog, hosts, targets[weakprog][target], target);
 
-					if(start > 0) {
-						ns.printf("Installed %s on %s targeting %s with %d threads", weakprog, host, target, start);
-					}
-
-					await ns.sleep(0);
-				}
-			}
-			if(started > 0) {
+			if(started) {
 				targeted.push(target);
 				setTimeout(() => {
 					targeted.splice(targeted.indexOf(target), 1);
@@ -478,24 +471,13 @@ export async function main(ns) {
 		targets[growprog] = getGrowTargets(ns, hosts, availThreads[growprog]);
 
 		for(const target in targets[growprog]) {
-			var started = 0;
-			for(const host of hosts) {
-				if(targets[growprog][target] > 0 && targeted.includes(target) == false) {
-					const start = await install(ns, growprog, host, targets[growprog][target], target);
-					targets[growprog][target] -= start;
-					started += start;
+			let started = await installProg(ns, growprog, hosts, targets[growprog][target], target);
 
-					if(start > 0) {
-						ns.printf("Installed %s on %s targeting %s with %d threads", growprog, host, target, start);
-					}
-
-					await ns.sleep(0);
-				}
-			}
-			if(started > 0) {
+			if(started) {
 				targeted.push(target);
+
 				setTimeout(() => {
-					targeted.splice(targeted.indexOf(target), 1);
+					targeted.splic(targeted.indexOf(target), 1);
 				}, ns.getGrowTime(target));
 			}
 		}
@@ -505,11 +487,6 @@ export async function main(ns) {
 
 		availThreads[hackprog] = getThreadAvail(ns, hosts, hackprog);
 		targets[hackprog] = getHackTargets(ns, hosts, availThreads[hackprog], targeted);
-
-		if(THREAD_LIMITED) {
-			await serverUpgrader(ns);
-			THREAD_LIMITED = 0;
-		}
 
 		for(const target in targets[hackprog]) {
 			const hackStarted = await installProg(ns, hackprog, hosts, targets[hackprog][target].hackThreads, target);

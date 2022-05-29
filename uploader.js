@@ -5,6 +5,12 @@ import {config} from "./auth.config.js";
 
 const ROOT = "game";
 
+/* from https://github.com/bitburner-official/bitburner-vscode/blob/master/src/extension.js
+ *
+ * "If the file is going to be in a director (sic), it NEEDS the leading `/`, i.e. `/my-dir/file.js`
+ * If the file is standalone, it CAN NOT HAVE a leading slash, i.e. `file.js`
+ * The game will not accept the file and/or have undefined behaviour otherwise..."
+ * */
 export const upload = async (file, path) => {
 	const content = await readFile(`${path}/${file}`);
 	const regex = new RegExp(`^${ROOT}`);
@@ -23,10 +29,12 @@ export const upload = async (file, path) => {
 		payload.filename = `${file}`;
 	}
 
+	//console.log(payload);
+
 	const payloadEnc = JSON.stringify(payload);
 
-	const option = {
-		hostname: 'localhost',
+	const options = {
+		hostname: '127.0.0.1',
 		port: 9990,
 		path: '/',
 		method: 'POST',
@@ -37,16 +45,25 @@ export const upload = async (file, path) => {
 		},
 	};
 
-	console.log(option);
+	//console.log(options);
+
+	try {
+		const req = http.request(options, (res) => {
+			console.log(`STATUS: ${res.statusCode}`);
+			res.on('data', (chunk) => {
+				const body = Buffer.from(chunk).toString();
+
+				console.log(`Response body: ${body}`);
+			});
+		});
+
+		req.write(payloadEnc);
+		req.end();
+	} catch(err) {
+		console.log(`ERROR: ${err}`);
+	}
 
 }
-
-/* from https://github.com/bitburner-official/bitburner-vscode/blob/master/src/extension.js
- *
- * "If the file is going to be in a director (sic), it NEEDS the leading `/`, i.e. `/my-dir/file.js`
- * If the file is standalone, it CAN NOT HAVE a leading slash, i.e. `file.js`
- * The game will not accept the file and/or have undefined behaviour otherwise..."
- * */
 
 const uploadAll = async (path) => {
 	const files = await readdir(path, {withFileTypes: true});

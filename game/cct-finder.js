@@ -19,7 +19,7 @@ export async function main(ns) {
 
 	await netscan(ns, host => {
 		const files = ns.ls(host);
-		const cctfiles = files.filter(file => file.match(/.+[.]cct/));
+		const cctfiles = files.filter(file => file.match(/.+[.]cct/)$);
 
 		if(cctfiles.length > 0) {
 			contracts[host] = cctfiles;

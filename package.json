@@ -1,0 +1,8 @@
+{
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"watch": "node watcher.js",
+		"upload": "node uploader.js"
+	}
+}

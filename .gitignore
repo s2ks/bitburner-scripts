@@ -1,3 +1,4 @@
 *.zip
 .*
 !.gitignore
+/auth.config.js

@@ -1,4 +1,5 @@
 import {watch, readdir} from "node:fs/promises"
+import {upload} from "./uploader.js";
 
 const EVENT = {
 	change: "change"
@@ -15,7 +16,10 @@ const handle = async (path) => {
 		const watcher = watch(path);
 		for await (const event of watcher) {
 			if(/.+[.](js|ns|script|txt)$/.test(event.filename)) {
-				console.log(`event ${event.eventType} for ${path}/${event.filename}`);
+				if(event.eventType == EVENT.change) {
+					await upload(event.filename, path);
+					//console.log(`File at ${path}/${event.filename} changed`);
+				}
 			}
 		}
 	} catch(err) {

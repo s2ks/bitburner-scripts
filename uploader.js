@@ -49,11 +49,19 @@ export const upload = async (file, path) => {
 
 	try {
 		const req = http.request(options, (res) => {
-			console.log(`STATUS: ${res.statusCode}`);
 			res.on('data', (chunk) => {
 				const body = Buffer.from(chunk).toString();
 
-				console.log(`Response body: ${body}`);
+				switch(res.statusCode) {
+					case 200:
+						console.log(`Successfully uploaded ${payload.filename}`);
+						break;
+					default:
+						console.log(`STATUS: ${res.statusCode}`);
+						console.log(`Response body: ${body}`);
+						break;
+				}
+
 			});
 		});
 
@@ -62,7 +70,6 @@ export const upload = async (file, path) => {
 	} catch(err) {
 		console.log(`ERROR: ${err}`);
 	}
-
 }
 
 const uploadAll = async (path) => {

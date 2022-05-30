@@ -19,7 +19,8 @@ var LAST_UPGRADE = null;
 
 var PROG = [];
 
-/* TODO */
+const TARGETED = {};
+
 /* @param {NS} ns */
 async function serverUpgrader(ns) {
 	if(LAST_UPGRADE != null) {
@@ -35,7 +36,6 @@ async function serverUpgrader(ns) {
 		mesg: "THREAD_LIMITED",
 	};
 
-	/** Write to server-master.js (TODO) */
 	await ns.writePort(1, btoa(JSON.stringify(data)));
 
 	LAST_UPGRADE = Date.now();
@@ -48,9 +48,27 @@ function getThreadAvail(ns, hosts, prog) {
 	var t = 0;
 	for(const host of hosts) {
 		const ram = ns.getServerMaxRam(host) - ns.getServerUsedRam(host);
-		t += Math.floor(ram / ns.getScriptRam(prog));
+		t += ram / ns.getScriptRam(prog);
 	}
-	return t;
+	return Math.floor(t);
+}
+
+function getTotalRam(ns, hosts) {
+	let ram = 0;
+	for(const host of hosts) {
+		ram += ns.getServerMaxRam(host);
+	}
+	return ram;
+}
+
+function getTotalMoney(ns, hosts) {
+	let money = 0;
+
+	for(const host of hosts) {
+		money += ns.getServer(host).moneyMax;
+	}
+
+	return money;
 }
 
 /* @param {NS} ns */
@@ -216,6 +234,10 @@ function getHackInfo(ns, host, maxThreads) {
 
 	/** TODO what we actually want is the most money per second AKA profit
 	 * rate, we want to compute the profit rate for the given host
+	 *
+	 * TODO don't try to be too clever, just get the maximum number of money we can make, but do consider stacking
+	 * hack/grow/weaken calls, perhaps more than once, don't worry about the number of threads we need. server-master
+	 * will take care of that.
 	 */
 	for(let i = 1; i < 100; i++) {
 		let t = Math.max(Math.floor(threads * (i / 100)), 1);
@@ -314,11 +336,14 @@ async function installProg(ns, prog, hosts, threads, ...args) {
 		))
 	*/
 
+	//console.log(hosts);
+
 	var started = 0;
+	let t = threads;
 	for(const host of hosts) {
-		if(threads > 0) {
-			const start = await install(ns, prog, host, threads, ...args);
-			threads -= start;
+		if(t > 0) {
+			const start = await install(ns, prog, host, t, ...args);
+			t -= start;
 			started += start;
 
 			if(start > 0) {
@@ -329,6 +354,109 @@ async function installProg(ns, prog, hosts, threads, ...args) {
 	}
 
 	return started;
+}
+
+async function installBatch(ns, batch) {
+	/* batch = {
+	 * 	hack: {
+	 * 		file: '',
+	 * 		delay: '',
+	 * 		amount: ''
+	 * 	},
+	 *
+	 * 	weaken: {
+	 * 		file: '',
+	 * 		delay: '',
+	 * 		amount: '',
+	 * 	},
+	 * 	grow: {
+	 * 		file: '',
+	 * 		delay: '',
+	 * 		amount: '',
+	 * 	}
+	 * }
+	 *
+	 * */
+}
+
+/*
+ * hack 	[|||||||]
+ * grow 	[||||||||||||]
+ * weaken 	[||||||||||||||||||]
+ *
+ * Is this always true? For now, assume it is
+ *
+ * if balance < 100%
+ * 	execute grow and layer hack so that it executes after grow
+ * 	also layer weaken so it will reduce the security level to a minimum
+ *
+ * if balance = 100%
+ * 	execute hack for max profit layer grow and weaken
+ *
+ * 	after grow completes
+ * 	if weaken time left >= hack time
+ * 		repeat this
+ *
+ * */
+
+
+/* Assume balance < 100% and > 0%
+ *
+ * p = bal / maxBal
+ * maxBal = bal * (1/p)
+ * grow = (1/p)
+ * maxBal / bal = 1/p = grow */
+function prepareHackBatch(ns, target) {
+	const batch = {
+		hack: {
+			file: PROG[HACK],
+			amount: 0,
+			time: 0,
+		},
+		grow: {
+			file: PROG[GROW],
+			amount: 0,
+			time: 0,
+		},
+		weaken: {
+			file: PROG[WEAK],
+			amount: 0,
+			time: 0,
+
+		},
+	};
+
+	/* weaken() takes longer to complete than grow() or hack()
+	 * if we can fit in another hack() call before weaken() finishes we should. */
+
+	const server = ns.getServer(target);
+
+	/* time in milliseconds */
+	const growTime = ns.getGrowTime(target);
+	const weakenTime = ns.getWeakenTime(target);
+	const hackTime = ns.getHackTime(target);
+
+	const hackAmount = ns.hackAnalyze(target);
+
+	/* XXX: take care of possible division by zero */
+	batch.grow.amount = server.moneyMax / server.moneyAvailable;
+	batch.grow.time = growTime;
+
+	batch.weaken.amount = server.hackDifficulty - server.minDifficulty;
+
+	/* hackAmount * t < bal
+	 * hackAmount * t = bal
+	 * t = floor(bal / hackAmount) */
+	let calls = server.moneyAvailable / hackAmount;
+
+	while((calls * hackAmount) >= bal) {
+		calls--;
+	}
+
+	batch.hack.amount = hackAmount * calls;
+	batch.hack.time = hackTime;
+
+	return batch;
 }
 
 /** @param {NS} ns */
@@ -380,7 +508,8 @@ export async function main(ns) {
 	});
 
 	while(1) {
-		var hosts = [];
+		let hosts = [];
+		let target = [];
 
 		await netscan(ns, host => {
 			hosts.push(host);
@@ -408,6 +537,18 @@ export async function main(ns) {
 				return (ns.getServer(b).purchasedByPlayer) - (ns.getServer(a).purchasedByPlayer);
 			}
 		});
+		//console.log(hosts);
+
+		target = hosts.filter((host) => {
+			const server = ns.getServer(host);
+			return (!server.isPurchasedByPlayer) && (server.moneyMax > 0) && (server.moneyAvailable > 0);
+		});
+
+		target.sort((a, b) => {
+			return ns.getServer(b).moneyAvailable - ns.getServer(a).moneyAvailable;
+		});
+
+		//console.log(targets);
 
 
 		/* TODO hack(), grow() and weaken() calls take a known time to complete
@@ -444,9 +585,9 @@ export async function main(ns) {
 
 			TODO if we are thread-limited we should purchase a server with an 'acceptable' amount of memory
 			until we are no longer thread limited.
-
-
 		*/
+
+
 
 		if(THREAD_LIMITED) {
 			await serverUpgrader(ns);
@@ -455,6 +596,11 @@ export async function main(ns) {
 
 		availThreads[weakprog] = getThreadAvail(ns, hosts, weakprog);
 		targets[weakprog] = getWeakenTargets(ns, hosts, availThreads[weakprog]);
+
+		/* TODO weaken takes the longest time to complete out of the hack(), grow(), and weaken() functions
+		 * we'll want to layer grow() and hack() calls on top of weaken to save time. We need a better way to keep track
+		 * of what action is being performed on what server and how long we expect it to take so we can make better
+		 * decisions on when and what to layer on top of that action. */
 
 		for(const target in targets[weakprog]) {
 			let started = await installProg(ns, weakprog, hosts, targets[weakprog][target], target);
@@ -470,6 +616,8 @@ export async function main(ns) {
 		availThreads[growprog] = getThreadAvail(ns, hosts, growprog);
 		targets[growprog] = getGrowTargets(ns, hosts, availThreads[growprog]);
 
+		/* TODO grow() increases a server's security level so it would make sense to layer hack() on top of it. We
+		 * know how much that would increase a server's security level in total so we can also prepare a weaken() call */
 		for(const target in targets[growprog]) {
 			let started = await installProg(ns, growprog, hosts, targets[growprog][target], target);
 
@@ -477,7 +625,7 @@ export async function main(ns) {
 				targeted.push(target);
 
 				setTimeout(() => {
-					targeted.splic(targeted.indexOf(target), 1);
+					targeted.splice(targeted.indexOf(target), 1);
 				}, ns.getGrowTime(target));
 			}
 		}
@@ -542,3 +690,4 @@ export async function main(ns) {
 		await ns.sleep(0);
 	}
 }
+

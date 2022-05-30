@@ -11,7 +11,7 @@ export async function main(ns) {
 	};
 
 	let tryGainRoot = (host) => {
-		const player = ns.getPLayer();
+		const player = ns.getPlayer();
 		const server = ns.getServer(host);
 
 		if(player.hacking < server.requiredHackingSkill) {

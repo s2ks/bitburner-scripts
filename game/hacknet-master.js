@@ -1,3 +1,7 @@
+
+let BONUS_INTERVAL = 0;
+let BONUS = 0;
+
 /** @param {NS} ns */
 function nodeProfits(ns) {
 	var nodes = ns.hacknet.numNodes();
@@ -10,7 +14,15 @@ function nodeProfits(ns) {
 
 	ns.print("Calculated total production: ", ns.nFormat(profit, "0.00a"));
 
-	return profit;
+	/* Apply a bonus on top of the profit that the hacknet generates for faster ugrades */
+	if(Date.now() - BONUS_INTERVAL >= 1000) {
+		/* Apply average money per second since last augmentation installment */
+		BONUS += ns.getScriptIncome()[1];
+		ns.print(`Adding ${ns.nFormat(ns.getScriptIncome()[1], '0.00a')} bonus`);
+		BONUS_INTERVAL = Date.now();
+	}
+
+	return profit + BONUS;
 }
 
 /** @param {NS} ns */
@@ -78,6 +90,6 @@ export async function main(ns) {
 			}
 		}
 
-		await ns.sleep(1*1000);
+		await ns.sleep(0);
 	}
 }

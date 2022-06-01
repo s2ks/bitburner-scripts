@@ -20,11 +20,6 @@ var LAST_UPGRADE = null;
 
 var PROG = [];
 
-//const TARGETED = {
-	//all: [],
-	//weaken: [],
-//};
-
 const TARGETED = [];
 
 function hasFormulasAPI(ns) {
@@ -107,8 +102,8 @@ async function installBatch(ns, batch, hosts) {
  	let bal = server.moneyAvailable;
 
 
-	/* FIXME if a weaken() batch finishes before a hack() batch executes then our computed hack amount is wrong and
-	 * we risk draining a server */
+	/* TODO What if a hack fails? Grow is started and Weaken is started, we should try again. But
+	 * first we should try and figure out how to detect if a hack fails */
 	if(isTargeted(target) == false) {
 
 		/* Install hack batch */
@@ -285,7 +280,6 @@ function prepareBatch(ns, target) {
 	const server = ns.getServer(target);
 	const bal = server.moneyAvailable;
 
-
 	const hackAmount = ns.hackAnalyze(target) * server.moneyAvailable;
 	//const hackAmount = ns.hackAnalyze(target);
 
@@ -311,7 +305,6 @@ function prepareBatch(ns, target) {
 	if(isTargeted(target)) {
 		batch.hack.amount = 0;
 	} else if(hackAmount > 0) {
-		//let calls = Math.floor((server.moneyAvailable / server.moneyMax) / hackAmount);
 		let calls = Math.floor(bal / hackAmount);
 
 		batch.hack.amount = hackAmount * calls;
@@ -332,18 +325,11 @@ function prepareBatch(ns, target) {
 		const weakRemTime = (weakTargeted.start + weakTargeted.duration) - Date.now();
 		const hackTime = ns.getHackTime(target);
 
-		//console.log(`weaken remaining time: ${weakRemTime}, hack time: ${hackTime} (${target})`);
-
 		if(weakRemTime <= hackTime && !hasFormulasAPI(ns)) {
-			//console.log(`Weaken is running for ${target} and will complete before hack() can start, and we don't have the FORMULAS API. Skipping...`)
 			batch.hack.amount = 0;
 		} else if(weakRemTime <= hackTime && hasFormulasAPI(ns)) {
-			//console.log(`Weaken is running for ${target} and will complete before hack() can start, but we have the FORMULAS API. Adjusting...`);
 			batch.server.hackDifficulty -= weakTargeted.effect;
-		} else {
-			//console.log(`Weaken is running for ${target} but we can run a hack() batch before it finishes. No action needed`);
 		}
-
 		/* Else the hack() batch completes within the time remaining for the weaken() batch so no action needed */
 	}
 
@@ -443,16 +429,6 @@ export async function main(ns) {
 
 		for(const target of targets) {
 			const batch = prepareBatch(ns, target);
-			//console.log('prepared batch:', clone(batch));
-
-			//if(ns.getServer(target).moneyAvailable == 0) {
-				//throw new Error(`No money on ${target}`);
-			//} else {
-				////console.log(`Money on ${target} ${ns.nFormat(ns.getServer(target).moneyAvailable, '0.00a')}`);
-			//}
-
-			//console.log(`${target} balance ${ns.nFormat(ns.getServer(target).moneyAvailable, '0.00a')} hack amount
-				//${ns.nFormat(batch.hack.amount, '0.00a')}`);
 
 			if(batch) {
 				await installBatch(ns, batch, hosts);

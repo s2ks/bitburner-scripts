@@ -53,7 +53,7 @@ export async function main(ns) {
 		ns.tprintf("\t-Root: %s, Security level %f / %f", server.hasAdminRights ? "Yes" : "No", secLvl, minSec);
 		ns.tprintf("\t-Hack requirement: open ports [%d] / hacker level  [%d]", portReq, lvlReq);
 		ns.tprintf("\t-Server max RAM: %d GB", ram);
-		ns.tprintf("\t-Balance %f%% of $%s", (moneyAvail / maxMoney) * 100, ns.nFormat(maxMoney, "0.0a"));
+		ns.tprintf(`\t-Balance ${(moneyAvail * 100) / maxMoney}%% of ${ns.nFormat(maxMoney, '0.00a')} drained? ${moneyAvail == 0 ? 'Yes' : 'No'}`);
 		ns.tprintf("\t-Hack time: %s, Weaken time: %s, Grow time: %s",
 			ns.tFormat(hacktime),
 			ns.tFormat(weakentime),

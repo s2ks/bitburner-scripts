@@ -54,7 +54,8 @@ export const upload = async (file, path) => {
 
 				switch(res.statusCode) {
 					case 200:
-						console.log(`Successfully uploaded ${payload.filename}`);
+						const info = JSON.parse(body);
+						console.log(`Successfully ${info.data.overwritten ? "overwritten" : "uploaded"} ${payload.filename}:\tscript ram: ${info.data.ramUsage} GB`);
 						break;
 					default:
 						console.log(`STATUS: ${res.statusCode}`);

@@ -20,29 +20,51 @@ var LAST_UPGRADE = null;
 
 var PROG = [];
 
-const TARGETED = {
-	all: [],
-	weaken: [],
-};
+//const TARGETED = {
+	//all: [],
+	//weaken: [],
+//};
 
+const TARGETED = [];
+
+function hasFormulasAPI(ns) {
+	return ns.fileExists("Formulas.exe");
+}
 
 function clone(obj) {
 	return JSON.parse(JSON.stringify(obj));
 }
 
-function isTargeted(host, key) {
-	key = key ? key : 'all';
-	return TARGETED[key].includes(host);
+function getTargeted(host, prog) {
+	for(const target of TARGETED) {
+		if(target.target == host && target.prog == prog) {
+			return target;
+		}
+	}
+
+	return null;
 }
 
-function targetDuration(host, duration, key) {
-	key = key ? key : 'all';
-	TARGETED[key].push(host);
+function isTargeted(host) {
+	return !!getTargeted(host, PROG[HACK]) || !!getTargeted(host, PROG[GROW]);
+}
+
+function targetDuration(host, duration, info) {
+	const startInfo = {
+		target: host,
+		prog: info.prog,
+		start: Date.now(),
+		duration: duration,
+		effect: info.effect,
+	};
+
+	TARGETED.push(startInfo);
+
 
 	//console.log(TARGETED);
 
 	setTimeout(() => {
-		TARGETED[key].splice(TARGETED[key].indexOf(host), 1);
+		TARGETED.splice(TARGETED.indexOf(startInfo), 1);
 	}, duration);
 }
 
@@ -77,22 +99,26 @@ async function installBatch(ns, batch, hosts) {
 	const weakenTime = ns.getWeakenTime(target);
 
 	const server = ns.getServer(target);
-	let bal = server.moneyAvailable;
-
-	const hackAmount = Math.ceil(ns.hackAnalyze(target) * bal);
-
-
+	const hackAmount = Math.ceil((hasFormulasAPI(ns) ?
+		ns.formulas.hacking.hackPercent(batch.server, ns.getPlayer()) :
+		ns.hackAnalyze(target)) * server.moneyAvailable);
 
 	let start = false;
+ 	let bal = server.moneyAvailable;
 
+
+	/* FIXME if a weaken() batch finishes before a hack() batch executes then our computed hack amount is wrong and
+	 * we risk draining a server */
 	if(isTargeted(target) == false) {
+
 		/* Install hack batch */
 		if(batch.hack.amount > 0 && hackAmount > 0) {
 			for(const host of hosts) {
 				if(batch.hack.amount <= 0) {
 					break;
 				}
-				const threads = Math.floor(ns.hackAnalyzeThreads(target, batch.hack.amount));
+
+				const threads = Math.floor(batch.hack.amount / hackAmount);
 
 				if(threads == 0) {
 					batch.hack.amount = 0;
@@ -100,10 +126,11 @@ async function installBatch(ns, batch, hosts) {
 				}
 
 				const started = await install(ns, batch.hack.file, host, threads, target);
+
 				if(started > 0) {
-					bal -= hackAmount * started;
+					bal -= (hackAmount * started);
 					batch.hack.amount -= hackAmount * started;
-					batch.grow.amount += hackAmount * started;
+					batch.grow.amount += (hackAmount * started);
 					batch.weaken.amount += ns.hackAnalyzeSecurity(started, target);
 
 					start = true;
@@ -113,19 +140,19 @@ async function installBatch(ns, batch, hosts) {
 
 		if(start) {
 			ns.print(`Installed hack batch targeting ${target}`);
-			targetDuration(target, hackTime);
+			targetDuration(target, hackTime, {prog: PROG[HACK]});
 		}
 
-		if(bal < 0) {
-			throw new Error("LOGIC ERROR: bal < 0");
+		if(bal <= 0) {
+			//throw new Error("Sanity check fail bal <= 0");
+			console.warn(`bal <= 0 for ${target}`);
 		}
 
 		/* we can recover from bal = 0 */
 		bal = bal > 0 ? bal : 1;
 
-		//console.log(`Batch after hack:`, clone(batch));
-
 		start = false;
+
 
 		/* Install grow batch */
 		if(batch.grow.amount > 0) {
@@ -140,12 +167,14 @@ async function installBatch(ns, batch, hosts) {
 
 				const started = await install(ns, batch.grow.file, host, threads, target);
 
+
 				if(started > 0) {
 					/* What percentage of the targeted growth did we manage to achieve?
 					 * (Can we do this?)*/
 					const r = (started / threads);
 					batch.grow.amount -= batch.grow.amount * r;
 					batch.weaken.amount += ns.growthAnalyzeSecurity(started, target, cores);
+
 
 					start = true;
 				}
@@ -154,7 +183,7 @@ async function installBatch(ns, batch, hosts) {
 
 		if(start) {
 			ns.print(`Installed grow batch targeting ${target}`);
-			targetDuration(target, growTime);
+			targetDuration(target, growTime, {prog: PROG[GROW]});
 		}
 
 		//console.log(`Batch after grow:`, clone(batch));
@@ -163,9 +192,11 @@ async function installBatch(ns, batch, hosts) {
 
 
 	start = false;
+	let result = 0;
+
 	/* Install weaken batch */
 	/* weakenAmount = threads * effect*/
-	if(isTargeted(target, "weaken") == false && batch.weaken.amount > 0) {
+	if(!!getTargeted(target, PROG[WEAK]) == false && batch.weaken.amount > 0) {
 		for(const host of hosts) {
 			if(batch.weaken.amount <= 0) {
 				break;
@@ -180,6 +211,7 @@ async function installBatch(ns, batch, hosts) {
 
 			if(started > 0) {
 				batch.weaken.amount -= effect * started;
+				result += effect * started;
 
 				start = true;
 			}
@@ -190,16 +222,16 @@ async function installBatch(ns, batch, hosts) {
 
 	if(start) {
 		ns.print(`Installed weaken batch targeting ${target}`);
-		targetDuration(target, weakenTime, "weaken");
+		targetDuration(target, weakenTime, {prog: PROG[WEAK], effect: result});
 
 	}
 
-	if(batch.hack.amount > hackAmount || batch.grow.amount > 0 && isTargeted(target) == false) {
+	if((batch.hack.amount > hackAmount || batch.grow.amount > 0) && isTargeted(target) == false) {
 		THREAD_LIMITED = 1;
 		console.log(`Thread limited because:`, clone(batch), `hackAmount = ${hackAmount}`);
 	}
 
-	if(batch.weaken.amount > 0 && isTargeted(target, "weaken") == false) {
+	if(batch.weaken.amount > 0 && !!getTargeted(target, PROG[WEAK]) == false) {
 		THREAD_LIMITED = 1;
 		console.log(`Thread limited because:`, clone(batch), `hackAmount = ${hackAmount}`);
 	}
@@ -228,6 +260,7 @@ async function installBatch(ns, batch, hosts) {
 function prepareBatch(ns, target) {
 	const batch = {
 		target: target,
+		server: clone(ns.getServer(target)),
 		hack: {
 			file: PROG[HACK],
 			amount: 0,
@@ -252,35 +285,69 @@ function prepareBatch(ns, target) {
 	const server = ns.getServer(target);
 	const bal = server.moneyAvailable;
 
-	//if(bal == 0) {
-		//return null;
-	//}
-
-	//assert(bal > 0, "bal > 0");
-
 
 	const hackAmount = ns.hackAnalyze(target) * server.moneyAvailable;
+	//const hackAmount = ns.hackAnalyze(target);
 
-	/* We can recover from bal = 0 */
-	batch.grow.amount = server.moneyMax - server.moneyAvailable;
+	if(isTargeted(target)) {
+		batch.grow.amount = 0;
+	} else {
+		/* We can recover from bal = 0 */
+		batch.grow.amount = server.moneyMax - server.moneyAvailable;
+	}
 
-	/* The base amount to weaken */
-	batch.weaken.amount = Math.floor(server.hackDifficulty - server.minDifficulty);
+	if(getTargeted(target, PROG[WEAK])) {
+		batch.weaken.amount = 0;
+	} else {
+		/* The base amount to weaken */
+		batch.weaken.amount = Math.floor(server.hackDifficulty - server.minDifficulty);
+	}
 
 	/* hackAmount * t < bal
 	 * hackAmount * t = bal
 	 * t = floor(bal / hackAmount) */
 	/* How much can we earn right now? */
 
-	if(hackAmount > 0) {
+	if(isTargeted(target)) {
+		batch.hack.amount = 0;
+	} else if(hackAmount > 0) {
+		//let calls = Math.floor((server.moneyAvailable / server.moneyMax) / hackAmount);
 		let calls = Math.floor(bal / hackAmount);
 
-		batch.hack.amount = Math.floor(hackAmount) * calls;
+		batch.hack.amount = hackAmount * calls;
 
-		/* Have 1 % margin for error */
-		batch.hack.amount -= Math.ceil(server.moneyMax * 0.01);
+		batch.hack.amount -= (server.moneyMax * 0.01);
 		batch.hack.amount = batch.hack.amount < 0 ? 0 : batch.hack.amount;
+
+	} else {
+		batch.hack.amount = 0;
 	}
+
+	const weakTargeted = getTargeted(target, PROG[WEAK]);
+
+	/* If a weaken batch is running and the time it takes to complete is less than the time it takes to run
+	 * a hack() batch then the computed values for the hack will be incorrect. If we have the Formulas.exe
+	 * file on home then we can compute the proper values, otherwise we should skip for now. */
+	if(weakTargeted) {
+		const weakRemTime = (weakTargeted.start + weakTargeted.duration) - Date.now();
+		const hackTime = ns.getHackTime(target);
+
+		//console.log(`weaken remaining time: ${weakRemTime}, hack time: ${hackTime} (${target})`);
+
+		if(weakRemTime <= hackTime && !hasFormulasAPI(ns)) {
+			//console.log(`Weaken is running for ${target} and will complete before hack() can start, and we don't have the FORMULAS API. Skipping...`)
+			batch.hack.amount = 0;
+		} else if(weakRemTime <= hackTime && hasFormulasAPI(ns)) {
+			//console.log(`Weaken is running for ${target} and will complete before hack() can start, but we have the FORMULAS API. Adjusting...`);
+			batch.server.hackDifficulty -= weakTargeted.effect;
+		} else {
+			//console.log(`Weaken is running for ${target} but we can run a hack() batch before it finishes. No action needed`);
+		}
+
+		/* Else the hack() batch completes within the time remaining for the weaken() batch so no action needed */
+	}
+
+	/* Have 1 % margin for error on the hack amount */
 
 	return batch;
 }
@@ -366,9 +433,7 @@ export async function main(ns) {
 
 		targets = hosts.filter((host) => {
 			const server = ns.getServer(host);
-			return (!server.isPurchasedByPlayer) &&
-				(server.moneyMax > 0) &&
-				isTargeted(host) == false;
+			return (!server.isPurchasedByPlayer) && (server.moneyMax > 0);
 		});
 
 		targets.sort((a, b) => {
@@ -379,6 +444,12 @@ export async function main(ns) {
 		for(const target of targets) {
 			const batch = prepareBatch(ns, target);
 			//console.log('prepared batch:', clone(batch));
+
+			//if(ns.getServer(target).moneyAvailable == 0) {
+				//throw new Error(`No money on ${target}`);
+			//} else {
+				////console.log(`Money on ${target} ${ns.nFormat(ns.getServer(target).moneyAvailable, '0.00a')}`);
+			//}
 
 			//console.log(`${target} balance ${ns.nFormat(ns.getServer(target).moneyAvailable, '0.00a')} hack amount
 				//${ns.nFormat(batch.hack.amount, '0.00a')}`);

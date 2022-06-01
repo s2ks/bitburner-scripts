@@ -1,6 +1,9 @@
 const NODATA = "NULL PORT DATA";
 const THREAD_LIMITED = "THREAD_LIMITED";
 
+/* 10 minutes */
+const TIMESPAN = 600;
+
 /** @param {NS} ns */
 export async function main(ns) {
 	const maxRam = 2**20;
@@ -34,12 +37,14 @@ export async function main(ns) {
 
 			while(1) {
 				const srvList = ns.getPurchasedServers();
+				let income;
 
 				if(Date.now() - start >= 1000) {
-					const income = ns.getScriptIncome(data.script, data.host, ...data.args);
+					income = ns.getScriptIncome(data.script, data.host, ...data.args);
 
 					if(income <= 0) {
 						ns.print("[SERVER-MASTER] INCOME <= 0");
+						ns.clearPort(1);
 						break;
 					}
 
@@ -48,8 +53,8 @@ export async function main(ns) {
 
 					ram = maxRam;
 
-					/** What's the best server we can buy with the money that we would make in 30 minutes? */
-					while(ns.getPurchasedServerCost(ram) / income > 1800 && ram >= 2) {
+					/* What's the best server we can buy with the money that we would make in a certain amount of time? */
+					while(ns.getPurchasedServerCost(ram) / income > TIMESPAN && ram >= 2) {
 						ram /= 2;
 					}
 
@@ -63,7 +68,7 @@ export async function main(ns) {
 				}
 
 				if(srvList.length < srvLimit) {
-					if(profit >= ns.getPurchasedServerCost(ram)) {
+					if(profit >= ns.getPurchasedServerCost(ram) || (income * TIMESPAN) < ns.getPlayer().money) {
 						ns.purchaseServer("4a4a42-" + srvList.length, ram);
 						ns.clearPort(1);
 						break;

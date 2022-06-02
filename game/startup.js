@@ -3,9 +3,9 @@ export async function main(ns) {
 		"harvester-master.js": {
 			args: ["--hackprog", "/harvester/hack.js", "--weakprog", "/harvester/weaken.js", "--growprog", "/harvester/grow.js"],
 		},
-		"hacknet-master.js": {args: []},
 		"rootkit.js": {args: []},
 		"server-master.js": {args:[]},
+		"hacknet-master.js": {args: []},
 	};
 
 	for(const script in startup) {

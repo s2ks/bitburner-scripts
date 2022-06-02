@@ -1,24 +1,10 @@
 import {netscan} from "/lib/scanner.js";
-
-export async function enterCommand(ns, cmd) {
-	const terminalInput = document.getElementById("terminal-input");
-
-	/* wait for the previous command to finish */
-	while(terminalInput.hasAttribute("disabled")) {
-		await ns.sleep(0);
-	}
-
-	terminalInput.value = cmd;
-
-	const handler = Object.keys(terminalInput)[1];
-
-	terminalInput[handler].onChange({target:terminalInput});
-	terminalInput[handler].onKeyDown({key:'Enter', preventDefault:() => null});
-}
+import {enterCommand} from "/lib/terminal.js";
 
 
 /** @param {NS} ns */
 export async function main(ns) {
+	let hosts = [];
 	await netscan(ns, async (host, path) => {
 		if(host == "home" || ns.hasRootAccess(host) == false) {
 			return;
@@ -26,27 +12,25 @@ export async function main(ns) {
 
 		const info = ns.getServer(host);
 
-		if(info.backdoorInstalled || info.purchasedByPlayer) {
-			return;
+		if(info.backdoorInstalled == false  && info.purchasedByPlayer == false) {
+			hosts.push({name: host, path: path.filter(name => name != "home")})
 		}
-
-		path = path.filter(name => name != "home");
-
-		var cmd = "home;"
-
-		await enterCommand(ns, "home");
-
-		for(const h of path) {
-			cmd += ns.sprintf("connect %s;", h);
-		}
-
-		cmd += ns.sprintf("connect %s;", host);
-		cmd += "backdoor";
-
-		await enterCommand(ns, cmd);
-
-		await ns.sleep(0);
 	});
 
+	hosts.sort((a, b) => {
+		return ns.getHackTime(b.name) - ns.getHackTime(a.name);
+	});
+
+	for(const host of hosts) {
+		let cmd = "home;"
+
+		for(const node of host.path) {
+			cmd += `connect ${node};`;
+		}
+
+		cmd += `connect ${host.name};backdoor`;
+
+		await enterCommand(ns, cmd);
+	}
 	await enterCommand(ns, "home");
 }

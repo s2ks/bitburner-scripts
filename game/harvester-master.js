@@ -120,7 +120,14 @@ async function installBatch(ns, batch, hosts) {
 					break;
 				}
 
-				const started = await install(ns, batch.hack.file, host, threads, target);
+				let started = 0;
+				try {
+					started = await install(ns, batch.hack.file, host, threads, target);
+				} catch(err) {
+					console.error(err);
+					continue;
+				}
+
 
 				if(started > 0) {
 					bal -= (hackAmount * started);
@@ -160,7 +167,15 @@ async function installBatch(ns, batch, hosts) {
 				const cores = ns.getServer(host).cpuCores;
 				const threads = Math.ceil(ns.growthAnalyze(target, grow, cores));
 
-				const started = await install(ns, batch.grow.file, host, threads, target);
+				let started = 0;
+
+				try {
+					started = await install(ns, batch.grow.file, host, threads, target);
+				} catch(err) {
+					console.error(err);
+					continue;
+				}
+
 
 
 				if(started > 0) {
@@ -200,7 +215,13 @@ async function installBatch(ns, batch, hosts) {
 			const effect = ns.weakenAnalyze(1, cores);
 			const threads = Math.ceil(batch.weaken.amount / effect);
 
-			const started = await install(ns, batch.weaken.file, host, threads, target);
+			let started = 0;
+			try {
+				started = await install(ns, batch.weaken.file, host, threads, target);
+			} catch (err) {
+				console.error(err);
+				continue;
+			}
 
 			//console.log(`started ${started}, wanted ${threads}, effect ${effect} target amount ${batch.weaken.amount}`);
 
@@ -223,12 +244,12 @@ async function installBatch(ns, batch, hosts) {
 
 	if((batch.hack.amount > hackAmount || batch.grow.amount > 0) && isTargeted(target) == false) {
 		THREAD_LIMITED = 1;
-		console.log(`Thread limited because:`, clone(batch), `hackAmount = ${hackAmount}`);
+		//console.log(`Thread limited because:`, clone(batch), `hackAmount = ${hackAmount}`);
 	}
 
 	if(batch.weaken.amount > 0 && !!getTargeted(target, PROG[WEAK]) == false) {
 		THREAD_LIMITED = 1;
-		console.log(`Thread limited because:`, clone(batch), `hackAmount = ${hackAmount}`);
+		//console.log(`Thread limited because:`, clone(batch), `hackAmount = ${hackAmount}`);
 	}
 }
 
@@ -395,47 +416,52 @@ export async function main(ns) {
 
 		/* XXX for debugging */
 		//hosts = hosts.filter(host => host != "home");
-		hosts.sort((a, b) => {
-			/* true - false > 0
-			 * false - true < 0
-			 * true - true = 0
-			 * false - false = 0
-			 *
-			 * You get the idea.
-			 */
+		try {
+			hosts.sort((a, b) => {
+				/* true - false > 0
+				 * false - true < 0
+				 * true - true = 0
+				 * false - false = 0
+				 *
+				 * You get the idea.
+				 */
 
-			/* We want home to be last in the hosts list so it will
+				/* We want home to be last in the hosts list so it will
 			be used last to install scripts on.
 
 			But we want the purchased servers to be first in the
 			list so they will be used first to install scripts on. */
-			if(a == "home" || b == "home") {
-				return (a == "home") - (b == "home");
-			} else {
-				return (ns.getServer(b).purchasedByPlayer) - (ns.getServer(a).purchasedByPlayer);
+				if(a == "home" || b == "home") {
+					return (a == "home") - (b == "home");
+				} else {
+					return (ns.getServer(b).purchasedByPlayer) - (ns.getServer(a).purchasedByPlayer);
+				}
+			});
+
+			targets = hosts.filter((host) => {
+				const server = ns.getServer(host);
+				return (!server.isPurchasedByPlayer) && (server.moneyMax > 0);
+			});
+
+			targets.sort((a, b) => {
+				return ns.getServer(b).moneyAvailable - ns.getServer(a).moneyAvailable;
+			});
+
+			for(const target of targets) {
+				const batch = prepareBatch(ns, target);
+
+				if(batch) {
+					await installBatch(ns, batch, hosts);
+				}
+
+				await ns.sleep(0);
 			}
-		});
-		//console.log(hosts);
 
-		targets = hosts.filter((host) => {
-			const server = ns.getServer(host);
-			return (!server.isPurchasedByPlayer) && (server.moneyMax > 0);
-		});
-
-		targets.sort((a, b) => {
-			return ns.getServer(b).moneyAvailable - ns.getServer(a).moneyAvailable;
-		});
-
-
-		for(const target of targets) {
-			const batch = prepareBatch(ns, target);
-
-			if(batch) {
-				await installBatch(ns, batch, hosts);
-			}
-
-			await ns.sleep(0);
+		} catch (err) {
+			console.error(err)
+			continue;
 		}
+		//console.log(hosts);
 
 		if(THREAD_LIMITED) {
 			//console.log(`'THREAD_LIMITED' flag is set`);

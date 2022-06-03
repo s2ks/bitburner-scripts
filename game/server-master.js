@@ -34,6 +34,7 @@ export async function main(ns) {
 			let start = Date.now();
 			let profit = 0;
 			let ram = maxRam;
+			let ramMult = 1;
 
 			while(1) {
 				const srvList = ns.getPurchasedServers();
@@ -64,20 +65,36 @@ export async function main(ns) {
 					}
 
 					ns.printf("Script profit: %s out of required %s", ns.nFormat(profit, '0.00a'),
-						ns.nFormat(ns.getPurchasedServerCost(ram), '0.00a'));
+						ns.nFormat(ns.getPurchasedServerCost(ram * ramMult), '0.00a'));
 				}
 
-				if(srvList.length < srvLimit) {
-					if(profit >= ns.getPurchasedServerCost(ram) || (income * TIMESPAN) < ns.getPlayer().money) {
-						ns.purchaseServer("4a4a42-" + srvList.length, ram);
+
+
+				if(profit >= ns.getPurchasedServerCost(ram * ramMult) || (income * TIMESPAN * ramMult) < ns.getPlayer().money) {
+					let id = Math.round(Math.random() * 0xffff).toString(16);
+
+					/* zero-pad */
+					while(id.length < 4) {
+						id  = `0${id}`;
+					}
+
+					if(srvList.length >= srvLimit) {
+						for(const host of srvList) {
+							if(ns.getServerMaxRam(host) < ram * ramMult) {
+								ns.killall(host);
+								ns.deleteServer(host);
+								break;
+							}
+						}
+					}
+
+					if(ns.getPurchasedServers().length < srvLimit) {
+						ns.purchaseServer(`4a4a42-${id}`, ram * ramMult);
 						ns.clearPort(1);
 						break;
+					} else {
+						ramMult *= 2;
 					}
-				}
-
-				if(srvList.length == srvLimit) {
-					ns.tprintf("[SERVER-MASTER] SERVER LIMIT REACHED!");
-					ns.exit();
 				}
 
 				await ns.sleep(0);

@@ -330,6 +330,7 @@ function prepareBatch(ns, target) {
 
 		batch.hack.amount = hackAmount * calls;
 
+		/* Have 1 % margin for error on the hack amount */
 		batch.hack.amount -= (server.moneyMax * 0.01);
 		batch.hack.amount = batch.hack.amount < 0 ? 0 : batch.hack.amount;
 
@@ -353,8 +354,6 @@ function prepareBatch(ns, target) {
 		}
 		/* Else the hack() batch completes within the time remaining for the weaken() batch so no action needed */
 	}
-
-	/* Have 1 % margin for error on the hack amount */
 
 	return batch;
 }

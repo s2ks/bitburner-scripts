@@ -1,6 +1,6 @@
 import {
 	solveArrayJump, findWaysToSumSet, solveWaysToSum2,
-	solveHammingCodes,
+	solveHammingCodes, solveGenerateIp, solveShortestPath,
 	} from "/cct-solver.js";
 
 
@@ -21,9 +21,18 @@ function testWaysToSum2() {
 
 /** @param {NS} ns */
 export async function main(ns) {
+	//const data = "9324116934";
+	const data = [
+		[0,0,0,0,0,1,0,0,0,1],
+		[0,0,0,0,1,1,0,0,1,0],
+		[0,0,1,1,0,1,1,0,0,0],
+		[0,1,0,0,0,0,0,0,0,1],
+		[0,0,0,0,1,0,0,0,0,0],
+		[1,1,0,0,1,0,0,0,0,0]
+	];
 
-	testWaysToSum2();
-	//const code = '100101000010100';
-	//00111100011000001001111111110000110010010101
-	//console.log(solveHammingCodes(code));
+	/* DDDDRRURRRRRRDRD
+	 * DDDDRRURRRRRRDRD*/
+
+	console.log(solveShortestPath(data));
 }

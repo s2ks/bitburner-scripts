@@ -28,7 +28,7 @@ export async function netscan(ns, action) {
 
 		for(const name of names) {
 			if(p.includes(name) == false) {
-				await doScan(host, p);
+				await doScan(name, p);
 			}
 		}
 	}

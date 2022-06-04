@@ -8,6 +8,8 @@ const solvers = {
 	"Total Ways to Sum II": 	solveWaysToSum2,
 	"HammingCodes: Encoded Binary to Integer": solveHammingCodes,
 	"HammingCodes: Integer to Encoded Binary": solveHammingEncode,
+	"Generate IP Addresses": 	solveGenerateIp,
+	"Shortest Path in a Grid": 	solveShortestPath,
 };
 
 export function autocomplete(data, arg) {
@@ -18,6 +20,221 @@ export function autocomplete(data, arg) {
 		"--info",
 		...data.servers,
 	];
+}
+
+/* You are trying to find the shortest path to the bottom-right corner of the grid, but
+ * there are obstacles on the grid that you cannot move onto. These obstacles are
+ * denoted by '1', while empty spaces are denoted by 0.
+ *
+ * Determine the shortest path from start to finish, if one exists. The answer should be
+ * given as a string of UDLR characters, indicating the moves along the path
+ *
+ * NOTE: If there are multiple equally short paths, any of them is accepted as answer.
+ * If there is no path, the answer should be an empty string.
+ *
+ * NOTE: The data returned for this contract is an 2D array of numbers representing the grid.
+ *
+ * Examples:
+ *
+ * [[0,1,0,0,0],
+ * [0,0,0,1,0]]
+ *
+ * Answer: 'DRRURRD'
+ *
+ * [[0,1],
+ * [1,0]]
+ * Answer: '' */
+
+
+/* You are located in the top-left corner of the following grid:
+ *
+ *	  [[0,0,0,0,0,1,0,0,0,1],
+ *	   [0,0,0,0,1,1,0,0,1,0],
+ *	   [0,0,1,1,0,1,1,0,0,0],
+ *	   [0,1,0,0,0,0,0,0,0,1],
+ *	   [0,0,0,0,1,0,0,0,0,0],
+ *	   [1,1,0,0,1,0,0,0,0,0]] */
+
+/* FIXME optimise */
+export function solveShortestPath(data) {
+	const height = data.length
+	const width = data[0].length;
+
+	/* In order to mark where we've been we can just set the coordinates in the grid to 1 */
+	const grid = data;
+
+	const direction = {};
+	direction['U'] = {dx:  0, dy: -1};
+	direction['R'] = {dx:  1, dy:  0};
+	direction['D'] = {dx:  0, dy:  1};
+	direction['L'] = {dx: -1, dy:  0};
+
+	/* Up: 		T( 0, -1)
+	 * Right: 	T( 1,  0)
+	 * Down: 	T( 0,  1)
+	 * Left: 	T(-1,  0)
+	 * */
+
+	const clone = (data) => {
+		return JSON.parse(JSON.stringify(data));
+	}
+
+	const solver = (grid, pos, path) => {
+		if((pos.x < 0 || pos.x >= width) || (pos.y < 0 || pos.y >= height)) {
+			/* We're out of bounds */
+			return '';
+		} else if(grid[pos.y][pos.x] == 1) {
+			/* We're not allowed to go though here */
+			return '';
+		} else if(grid[pos.y][pos.x] == -1) {
+			/* We've been here already */
+			return null;
+		}
+
+		if(pos.x == (width - 1) && pos.y == (height - 1)) {
+			return path;
+		}
+
+
+		/* Mark that we've been here, for now */
+		grid[pos.y][pos.x] = -1;
+
+		//console.log(clone(grid));
+
+		let ipath = [];
+		let doUnmark = false;
+		for(const d in direction)  {
+			const res = solver(grid, {
+				x: pos.x + direction[d].dx,
+				y: pos.y + direction[d].dy,
+			}, path + d);
+
+			if(res == null) {
+				/* We've run a circle, don't mistake it for a dead end */
+				doUnmark = true;
+			} else {
+				ipath.push(res);
+			}
+		}
+
+
+		ipath.sort((a, b) => {
+			return a.length - b.length;
+		});
+
+		ipath = ipath.filter(p => p.length > 0);
+		/* If all directions return empty then we've reached a dead end and we should mark it for future passes */
+		if(ipath.length > 0 || doUnmark) {
+			/* If this doesn't lead to a dead end then we 'unmark' it for future passes */
+			grid[pos.y][pos.x] = 0;
+		} else {
+			ipath[0] = '';
+		}
+
+		return ipath[0] ? ipath[0] : '';
+	}
+
+	return solver(grid, {x: 0, y: 0}, '');
+}
+
+/*  Generate valid 'IP address' strings.
+ *  We are given a string of digits e.g. "9324116934"
+ *  the objective is to return an array of all valid IP addresses that
+ *  can be constructed.
+ *
+ *  For 9324116934 we can make:
+ *  	93.241.169.34
+ *  	93.241.16.934 -- invalid '934'
+ *  	932.241.16.34 -- invalid '932'
+ *  	932.241.1.634 -- invalid '932, 634'
+ *  	932.241.163.4 -- invalid '932'
+ *  	9.324.116.934 -- invalid '934'
+ *  The only valid result is the first one so -> ["93.241.169.34"] is the answer.
+ *
+ *  For 25525511135 we can make:
+ *  	255.255.111.35
+ *  	255.255.11.135
+ *  	255.25.511.135 -- invalid '511'
+ *  	25.525.111.135 -- invalid '525'
+ *
+ *
+ *  For 1938718066 we can make:
+ *  	193.871.806.6 -- invalid
+ *  	193.871.80.66 -- invalid
+ *  	193.871.8.066 -- invalid
+ *  	193.87.180.66
+ *
+ *  An IP address is a 32 bit integer
+ *
+ *  aaa.bbb.ccc.ddd
+ *
+ *  A = ddd << 0
+ *  B = ccc << 8
+ *  C = bbb << 16
+ *  D = aaa << 24
+ *
+ *  IP = (A | B | C | D) < 2^32 */
+/* FIXME this solution is awful */
+export function solveGenerateIp(data) {
+	const digits = data.split('');
+	const answer = [];
+
+	let number = 0;
+
+
+	const makeIP = (digits, idx) => {
+		if(idx > 3) {
+			return [];
+		}
+
+		/* Return all valid 'first' parts */
+		let part = '';
+		let parts = [
+		];
+		for(let i = 0; i < 3; i++) {
+			part += digits[i];
+			const parsed = parseInt(part);
+
+			if(part.length > 1 && part[0] == '0') {
+				break;
+			}
+			if(parsed <= 0xff) {
+				parts.push({part: parsed.toString(), idx: idx});
+				parts = parts.concat(makeIP(digits.slice(i + 1), idx + 1));
+			} else {
+				break;
+			}
+		}
+
+		return parts;
+
+	};
+
+	const ipParts = makeIP(digits, 0);
+	const parts = [
+		ipParts.filter(part => part.idx == 0),
+		ipParts.filter(part => part.idx == 1),
+		ipParts.filter(part => part.idx == 2),
+		ipParts.filter(part => part.idx == 3),
+	];
+
+	console.log(parts);
+
+	for(let i = 0; i < parts[0].length; i++) {
+		for(let j = 0; j < parts[1].length; j++) {
+			for(let k = 0; k < parts[2].length; k++) {
+				for(let l = 0; l < parts[3].length; l++) {
+					const ip = `${parts[0][i].part}.${parts[1][j].part}.${parts[2][k].part}.${parts[3][l].part}`;
+					const raw = `${parts[0][i].part}${parts[1][j].part}${parts[2][k].part}${parts[3][l].part}`;
+					if(raw == data && answer.includes(ip) == false) {
+						answer.push(ip);
+					}
+				}
+			}
+		}
+	}
+
+	return answer;
 }
 
 /* NOTE: this produces invalid hamming codes, but it's what the contract wants. */
@@ -477,6 +694,11 @@ export async function main(ns) {
 	}
 
 	if(type in solvers) {
+		if(solvers[type] == undefined) {
+			ns.tprint(`Solver for contract type '${type}' is not implemented.`);
+			ns.exit();
+		}
+
 		const solution = solvers[type](data);
 
 		if(answer) {
@@ -484,10 +706,7 @@ export async function main(ns) {
 			if(resp) {
 				ns.tprintf("%s", resp)
 			} else {
-				ns.tprintf("SOLUTION INCORRECT (%d), %d tries left!",
-					solution,
-					ns.codingcontract.getNumTriesRemaining(file, host)
-				);
+				ns.tprint(`SOLUTION INCORRECT ${solution} ${ns.codingcontract.getNumTriesRemaining(file, host)} tries left!`);
 			}
 		} else {
 			ns.tprint(solution);

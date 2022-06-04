@@ -17,7 +17,7 @@ function nodeProfits(ns) {
 	/* Apply a bonus on top of the profit that the hacknet generates for faster ugrades */
 	if(Date.now() - BONUS_INTERVAL >= 1000) {
 		/* Apply average money per second since last augmentation installment */
-		BONUS += ns.getScriptIncome()[1];
+		BONUS += (ns.getScriptIncome()[0]) * 0.25;
 		ns.print(`Adding ${ns.nFormat(ns.getScriptIncome()[1], '0.00a')} bonus`);
 		BONUS_INTERVAL = Date.now();
 	}

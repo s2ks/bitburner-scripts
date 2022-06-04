@@ -79,12 +79,26 @@ export async function main(ns) {
 					}
 
 					if(srvList.length >= srvLimit) {
+						const lowest = {
+							name: '',
+							ram: maxRam,
+						}
 						for(const host of srvList) {
-							if(ns.getServerMaxRam(host) < ram * ramMult) {
-								ns.killall(host);
-								ns.deleteServer(host);
-								break;
+							const hostRam = ns.getServerMaxRam(host);
+							if(hostRam < lowest.ram) {
+								lowest.name = host;
+								lowest.ram = hostRam;
 							}
+							//if(ns.getServerMaxRam(host) < ram * ramMult) {
+								//ns.killall(host);
+								//ns.deleteServer(host);
+								//break;
+							//}
+						}
+
+						if(lowest.ram < ram * ramMult && lowest.ram < maxRam) {
+							ns.killall(lowest.name);
+							ns.deleteServer(lowest.name);
 						}
 					}
 

@@ -1,32 +1,15 @@
+import {netscan} from "/lib/scanner.js";
+
 export function autocomplete(data, arg) {
-	return ["--root-only"];
+	return ["--root"];
 }
 
-/** @param {NS} ns */
-async function scanner(ns, host, path, callback) {
-	var names = ns.scan(host);
-	var p = path.slice();
-
-	await callback(ns, host, p);
-
-	p.push(host);
-
-	for(const name of names) {
-		if(p.includes(name) == false) {
-			await scanner(ns, name, p, callback);
-		}
-	}
-}
-
-/** @param {NS} ns */
 export async function main(ns) {
 	const opts = ns.flags([
-		['root-only', false],
+		['root', false],
 	]);
 
-
-	/** @param {NS} ns */
-	function printinfo(ns, host, path) {
+	await netscan(ns, (host, path) => {
 		let server = ns.getServer(host);
 
 		if(opts['root-only'] == true) {
@@ -58,7 +41,6 @@ export async function main(ns) {
 			ns.tFormat(hacktime),
 			ns.tFormat(weakentime),
 			ns.tFormat(growtime));
-	}
 
-	await scanner(ns, ns.getHostname(), [], printinfo);
+	});
 }

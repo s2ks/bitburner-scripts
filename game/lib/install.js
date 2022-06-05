@@ -7,6 +7,7 @@ export async function install(ns, script, target, threads, ...args) {
 		return 0;
 	}
 
+	threads = threads ? threads : threadAllow;
 	threads = threads > threadAllow ? threadAllow : threads;
 
 	if(await ns.scp(script, target) == false) {

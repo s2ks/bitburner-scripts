@@ -6,6 +6,7 @@ export async function main(ns) {
 		"rootkit.js": {args: []},
 		"server-master.js": {args:[]},
 		"hacknet-master.js": {args: []},
+		"share-master.js": {args: []},
 	};
 
 	for(const script in startup) {

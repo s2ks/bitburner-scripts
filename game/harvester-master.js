@@ -478,11 +478,14 @@ export async function main(ns) {
 			});
 
 			hosts = hosts.filter((host) => {
-				if(host == "home" && config.harvester.allowHome == false) {
-					return false;
-				} else {
-					return true;
+				if(host == "home") {
+					const free = ns.getServerMaxRam(host) - ns.getServerUsedRam(host);
+					if(free < (ns.getServerMaxRam(host) * 0.9)) {
+						return false
+					}
 				}
+
+				return true;
 			});
 
 			/* Sort by available money from most to least */

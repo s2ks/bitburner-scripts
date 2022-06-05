@@ -1,6 +1,7 @@
 import {netscan} from "/lib/scanner.js";
 import {install} from "/lib/install.js";
 import {assert} from "/lib/util.js";
+import {config} from "config.js";
 
 export function autocomplete(data, arg) {
 	return [
@@ -24,6 +25,16 @@ const TARGETED = [];
 
 function hasFormulasAPI(ns) {
 	return ns.fileExists("Formulas.exe");
+}
+
+function getThreadAvail(ns, hosts, prog) {
+	const ramAvg = ns.getScriptRam(prog);
+	let avail = 0;
+	for(const host of hosts) {
+		const free = ns.getServerMaxRam(host) - ns.getServerUsedRam(host);
+		avail += Math.floor(free / ramAvg);
+	}
+	return avail;
 }
 
 function clone(obj) {
@@ -71,11 +82,12 @@ async function serverUpgrader(ns) {
 		}
 	}
 
+	console.log(`THREAD_LIMITED = ${THREAD_LIMITED}`);
+
 	var data = {
-		script: ns.getScriptName(),
-		host: ns.getHostname(),
-		args: ns.args,
 		mesg: "THREAD_LIMITED",
+		/* All three scripts have (nearly) equal ram size */
+		ramReq: THREAD_LIMITED * ns.getScriptRam(PROG[GROW]),
 	};
 
 	//console.log("Asking for more threads...");
@@ -101,155 +113,178 @@ async function installBatch(ns, batch, hosts) {
 	let start = false;
  	let bal = server.moneyAvailable;
 
+	let limited = 0, ilimited = 0;
+
+	let threadAvail = getThreadAvail(ns, hosts, batch.hack.file);
+
+	let wantThreads = 0;
 
 	/* TODO What if a hack fails? Grow is started and Weaken is started, we should try again. But
 	 * first we should try and figure out how to detect if a hack fails */
-	if(isTargeted(target) == false) {
 
-		/* Install hack batch */
-		if(batch.hack.amount > 0 && hackAmount > 0) {
-			for(const host of hosts) {
-				if(batch.hack.amount <= 0) {
-					break;
-				}
+	/* TODO split this into helper functions */
 
-				const threads = Math.floor(batch.hack.amount / hackAmount);
-
-				if(threads == 0) {
-					batch.hack.amount = 0;
-					break;
-				}
-
-				let started = 0;
-				try {
-					started = await install(ns, batch.hack.file, host, threads, target);
-				} catch(err) {
-					console.error(err);
-					continue;
-				}
-
-
-				if(started > 0) {
-					bal -= (hackAmount * started);
-					batch.hack.amount -= hackAmount * started;
-					batch.grow.amount += (hackAmount * started);
-					batch.weaken.amount += ns.hackAnalyzeSecurity(started, target);
-
-					start = true;
-				}
-			}
-		}
-
-		if(start) {
-			ns.print(`Installed hack batch targeting ${target}`);
-			targetDuration(target, hackTime, {prog: PROG[HACK]});
-		}
-
-		if(bal <= 0) {
-			//throw new Error("Sanity check fail bal <= 0");
-			console.warn(`bal <= 0 for ${target}`);
-		}
-
-		/* we can recover from bal = 0 */
-		bal = bal > 0 ? bal : 1;
-
-		start = false;
-
-
-		/* Install grow batch */
-		if(batch.grow.amount > 0) {
-			for(const host of hosts) {
-				if(batch.grow.amount <= 0) {
-					break;
-				}
-
-				const grow = 1 + (batch.grow.amount / bal);
-				const cores = ns.getServer(host).cpuCores;
-				const threads = Math.ceil(ns.growthAnalyze(target, grow, cores));
-
-				let started = 0;
-
-				try {
-					started = await install(ns, batch.grow.file, host, threads, target);
-				} catch(err) {
-					console.error(err);
-					continue;
-				}
-
-
-
-				if(started > 0) {
-					/* What percentage of the targeted growth did we manage to achieve?
-					 * (Can we do this?)*/
-					const r = (started / threads);
-					batch.grow.amount -= batch.grow.amount * r;
-					batch.weaken.amount += ns.growthAnalyzeSecurity(started, target, cores);
-
-
-					start = true;
-				}
-			}
-		}
-
-		if(start) {
-			ns.print(`Installed grow batch targeting ${target}`);
-			targetDuration(target, growTime, {prog: PROG[GROW]});
-		}
-
-		//console.log(`Batch after grow:`, clone(batch));
-
+	if(!!getTargeted(target, batch.hack.file) || !!getTargeted(target, batch.grow.file)) {
+		batch.hack.amount = 0;
+		batch.grow.amount = 0;
 	}
 
+	if(hackAmount <= 0) {
+		batch.hack.amount = 0;
+	}
+
+	if(batch.hack.amount > 0 && hackAmount > 0) {
+		wantThreads = Math.floor(batch.hack.amount / hackAmount);
+	}
+
+	if(wantThreads > threadAvail) {
+		limited += wantThreads - threadAvail;
+		batch.hack.amount = 0;
+	}
+
+	/* Install hack batch */
+	for(const host of hosts) {
+		if(batch.hack.amount <= 0) {
+			break;
+		}
+
+		const threads = Math.floor(batch.hack.amount / hackAmount);
+
+		if(threads == 0) {
+			batch.hack.amount = 0;
+			break;
+		}
+
+		let started = 0;
+		try {
+			started = await install(ns, batch.hack.file, host, threads, target);
+		} catch(err) {
+			console.error(err);
+			continue;
+		}
+
+		ilimited = threads - started;
+
+		if(started > 0) {
+			bal -= (hackAmount * started);
+			batch.hack.amount -= hackAmount * started;
+			batch.grow.amount += (hackAmount * started);
+			batch.weaken.amount += ns.hackAnalyzeSecurity(started, target);
+
+			start = true;
+		}
+	}
+
+	if(start) {
+		ns.print(`Installed hack batch targeting ${target}`);
+		targetDuration(target, hackTime, {prog: batch.hack.file});
+	}
+
+	if(bal <= 0) {
+		//throw new Error("Sanity check fail bal <= 0");
+		console.warn(`bal <= 0 for ${target}`);
+	}
+
+	/* we can recover from bal = 0 */
+	bal = bal > 0 ? bal : 1;
+
+	start = false;
+
+	threadAvail = getThreadAvail(ns, hosts, batch.grow.file);
+	wantThreads = 0;
+
+	/* Install grow batch */
+	for(const host of hosts) {
+		if(batch.grow.amount <= 0) {
+			break;
+		}
+
+		const grow = 1 + (batch.grow.amount / bal);
+		const cores = ns.getServer(host).cpuCores;
+		const threads = Math.ceil(ns.growthAnalyze(target, grow, cores));
+
+		let started = 0;
+
+		try {
+			started = await install(ns, batch.grow.file, host, threads, target);
+		} catch(err) {
+			console.error(err);
+			continue;
+		}
+
+
+		ilimited = threads - started;
+
+		if(started > 0) {
+			/* What percentage of the targeted growth did we manage to achieve?
+			 * (Can we do this?)*/
+			const r = (started / threads);
+			batch.grow.amount -= batch.grow.amount * r;
+			batch.weaken.amount += ns.growthAnalyzeSecurity(started, target, cores);
+
+
+			start = true;
+		}
+	}
+
+	limited += ilimited;
+
+	if(start) {
+		ns.print(`Installed grow batch targeting ${target}`);
+		targetDuration(target, growTime, {prog: batch.grow.file});
+	}
 
 	start = false;
 	let result = 0;
 
 	/* Install weaken batch */
 	/* weakenAmount = threads * effect*/
-	if(!!getTargeted(target, PROG[WEAK]) == false && batch.weaken.amount > 0) {
-		for(const host of hosts) {
-			if(batch.weaken.amount <= 0) {
-				break;
-			}
-			const cores = ns.getServer(host).cpuCores;
-			const effect = ns.weakenAnalyze(1, cores);
-			const threads = Math.ceil(batch.weaken.amount / effect);
+	if(!!getTargeted(target, batch.weaken.file)) {
+		batch.weaken.amount = 0;
+	}
 
-			let started = 0;
-			try {
-				started = await install(ns, batch.weaken.file, host, threads, target);
-			} catch (err) {
-				console.error(err);
-				continue;
-			}
+	for(const host of hosts) {
+		if(batch.weaken.amount <= 0) {
+			break;
+		}
+		const cores = ns.getServer(host).cpuCores;
+		const effect = ns.weakenAnalyze(1, cores);
+		const threads = Math.ceil(batch.weaken.amount / effect);
 
-			//console.log(`started ${started}, wanted ${threads}, effect ${effect} target amount ${batch.weaken.amount}`);
+		let started = 0;
+		try {
+			started = await install(ns, batch.weaken.file, host, threads, target);
+		} catch (err) {
+			console.error(err);
+			continue;
+		}
 
-			if(started > 0) {
-				batch.weaken.amount -= effect * started;
-				result += effect * started;
+		ilimited = threads - started;
 
-				start = true;
-			}
+		//console.log(`started ${started}, wanted ${threads}, effect ${effect} target amount ${batch.weaken.amount}`);
+
+		if(started > 0) {
+			batch.weaken.amount -= effect * started;
+			result += effect * started;
+
+			start = true;
 		}
 	}
 
-	//console.log(`Batch after weaken:`, clone(batch));
+	limited += ilimited;
 
 	if(start) {
 		ns.print(`Installed weaken batch targeting ${target}`);
-		targetDuration(target, weakenTime, {prog: PROG[WEAK], effect: result});
+		targetDuration(target, weakenTime, {prog: batch.weaken.file, effect: result});
 
 	}
 
 	if((batch.hack.amount > hackAmount || batch.grow.amount > 0) && isTargeted(target) == false) {
-		THREAD_LIMITED = 1;
-		//console.log(`Thread limited because:`, clone(batch), `hackAmount = ${hackAmount}`);
+		THREAD_LIMITED = limited ? limited : 1;
 	}
 
 	if(batch.weaken.amount > 0 && !!getTargeted(target, PROG[WEAK]) == false) {
-		THREAD_LIMITED = 1;
-		//console.log(`Thread limited because:`, clone(batch), `hackAmount = ${hackAmount}`);
+		THREAD_LIMITED = limited ? limited : 1;
 	}
 }
 
@@ -442,9 +477,26 @@ export async function main(ns) {
 				return (!server.isPurchasedByPlayer) && (server.moneyMax > 0);
 			});
 
-			targets.sort((a, b) => {
-				return ns.getServer(b).moneyAvailable - ns.getServer(a).moneyAvailable;
+			hosts = hosts.filter((host) => {
+				if(host == "home" && config.harvester.allowHome == false) {
+					return false;
+				} else {
+					return true;
+				}
 			});
+
+			/* Sort by available money from most to least */
+			//targets.sort((a, b) => {
+				//return ns.getServer(b).moneyAvailable - ns.getServer(a).moneyAvailable;
+			//});
+
+			/* Sort by hack time from least to most */
+			//targets.sort((a, b) => {
+				//return ns.getHackTime(a) - ns.getHackTime(b);
+			//});
+
+			/* Sort by chance for a successful hack from most to least */
+			targets.sort((a, b) => ns.hackAnalyzeChance(b) - ns.hackAnalyzeChance(a));
 
 			for(const target of targets) {
 				const batch = prepareBatch(ns, target);

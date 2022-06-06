@@ -1,8 +1,6 @@
 export async function main(ns) {
 	const startup = {
-		"harvester-master.js": {
-			args: ["--hackprog", "/harvester/hack.js", "--weakprog", "/harvester/weaken.js", "--growprog", "/harvester/grow.js"],
-		},
+		"harvester-master.js": {args: []},
 		"rootkit.js": {args: []},
 		"server-master.js": {args:[]},
 		"hacknet-master.js": {args: []},

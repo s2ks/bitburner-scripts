@@ -1,13 +1,17 @@
-const NODATA = "NULL PORT DATA";
-const THREAD_LIMITED = "THREAD_LIMITED";
+import {config} from "config.js";
 
-/* 10 minutes */
-const TIMESPAN = 600;
+const mesg = {
+	NODATA: "NULL PORT DATA",
+	THREAD_LIMITED: "THREAD_LIMITED",
+};
 
-/** @param {NS} ns */
+/* In seconds */
+const TIMESPAN = 3600;
+
 export async function main(ns) {
-	const maxRam = 2**20;
+	const maxRam = ns.getPurchasedServerMaxRam(); // 2^20
 	const srvLimit = ns.getPurchasedServerLimit();
+	const minRam = 512;
 
 	ns.disableLog("disableLog");
 	ns.disableLog("sleep");
@@ -17,98 +21,75 @@ export async function main(ns) {
 	var ram = maxRam;
 
 	while(1) {
-		let data = ns.readPort(1);
+		let data = ns.readPort(config.ports.SERVER_MASTER);
 
-		await ns.sleep(0);
-
-		if(data == NODATA) {
+		if(data == mesg.NODATA) {
 			await ns.sleep(500);
 			continue;
+		} else {
+			await ns.sleep(0);
 		}
 
 		data = atob(data);
 		data = JSON.parse(data);
 
-		if(data.mesg == THREAD_LIMITED) {
+		if(data.mesg == mesg.THREAD_LIMITED) {
 			ns.print("THREAD_LIMITED message received.");
 			let start = Date.now();
 			let profit = 0;
-			let ram = maxRam;
-			let ramMult = 1;
+			let ram = 2;
+			let wantRam = data?.ramReq;
+
+
+			ns.print(`Want ram = ${ns.nFormat(wantRam * 1e9, '0.0 b')}`);
+
+			if(!wantRam) {
+				ns.print(`No ram amount specified in the request field.`);
+				ns.clearPort(config.ports.SERVER_MASTER);
+				continue;
+			}
+
+			const srvList = ns.getPurchasedServers();
+
+			srvList.sort((a, b) => {
+				return ns.getServerMaxRam(a) - ns.getServerMaxRam(b);
+			});
+
+			if(srvList.length >= srvLimit) {
+				wantRam += ns.getServerMaxRam(srvList[0]);
+			}
+
+			while(ram < wantRam) {
+				ram *= 2;
+			}
+
+			ram = ram > maxRam ? maxRam : ram;
+
+			const cost = ns.getPurchasedServerCost(ram);
+			const income = ns.getScriptIncome()[0];
+			const time = ns.getPurchasedServerCost(ram) / income;
+
+			ns.print(`Target ram: ${ns.nFormat(ram * 1e9, '0.0 b')}`);
+			ns.print(`Cost: ${ns.nFormat(cost, '0.00a')}`);
+			ns.print(`Will take ${ns.tFormat(time * 1000)}`);
 
 			while(1) {
-				const srvList = ns.getPurchasedServers();
-				let income;
+				const money = ns.getPlayer().money;
 
-				if(Date.now() - start >= 1000) {
-					income = ns.getScriptIncome(data.script, data.host, ...data.args);
-
-					if(income <= 0) {
-						ns.print("[SERVER-MASTER] INCOME <= 0");
-						ns.clearPort(1);
-						break;
-					}
-
-					profit += income;
-					start = Date.now();
-
-					ram = maxRam;
-
-					/* What's the best server we can buy with the money that we would make in a certain amount of time? */
-					while(ns.getPurchasedServerCost(ram) / income > TIMESPAN && ram >= 2) {
-						ram /= 2;
-					}
-
-					if(ram < 2) {
-						ns.clearPort(1);
-						break;
-					}
-
-					ns.printf("Script profit: %s out of required %s", ns.nFormat(profit, '0.00a'),
-						ns.nFormat(ns.getPurchasedServerCost(ram * ramMult), '0.00a'));
-				}
-
-
-
-				if(profit >= ns.getPurchasedServerCost(ram * ramMult) || (income * TIMESPAN * ramMult) < ns.getPlayer().money) {
-					let id = Math.round(Math.random() * 0xffff).toString(16);
-
-					/* zero-pad */
-					while(id.length < 4) {
-						id  = `0${id}`;
-					}
-
+				if(money >= cost) {
 					if(srvList.length >= srvLimit) {
-						const lowest = {
-							name: '',
-							ram: maxRam,
-						}
-						for(const host of srvList) {
-							const hostRam = ns.getServerMaxRam(host);
-							if(hostRam < lowest.ram) {
-								lowest.name = host;
-								lowest.ram = hostRam;
-							}
-							//if(ns.getServerMaxRam(host) < ram * ramMult) {
-								//ns.killall(host);
-								//ns.deleteServer(host);
-								//break;
-							//}
-						}
-
-						if(lowest.ram < ram * ramMult && lowest.ram < maxRam) {
-							ns.killall(lowest.name);
-							ns.deleteServer(lowest.name);
-						}
+						ns.deleteServer(srvList[0]);
 					}
 
-					if(ns.getPurchasedServers().length < srvLimit) {
-						ns.purchaseServer(`4a4a42-${id}`, ram * ramMult);
-						ns.clearPort(1);
-						break;
-					} else {
-						ramMult *= 2;
+					let id = Math.floor(Math.random() * 0xffff).toString(16);
+					while(id.length < 4) {
+						id = `0${id}`;
 					}
+
+					ns.purchaseServer(`4a4a42-${id}`, ram);
+
+					ns.clearPort(config.ports.SERVER_MASTER);
+					break;
 				}
 
 				await ns.sleep(0);

@@ -4,7 +4,7 @@ Collection of scripts I use in [Bitburner](https://github.com/danielyxie/bitburn
 
 ---
 
-To use with the 'API Server'
+To use with the '[API Server](https://github.com/bitburner-official/bitburner-vscode)'
 
 ```
 $ git clone git@github.com:s2ks/bitburner-scripts.git

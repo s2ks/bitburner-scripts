@@ -22,6 +22,7 @@ function updateTasks(ns) {
  * when needed.
  *
  * OK NVM, The wanted level penalty is smallest at wanted level 1 so just try to keep it near that value
+ * Update: The wanted level penalty is a ratio between the respect level and the wanted level (???)
  *
  * ASCENDING:
  * Gang members can 'ascend' when you ascend a gang member they lose all their items except for Augments.

@@ -1,8 +1,18 @@
-/* TODO Define some constants here */
 export const config = {
 	/* Port numbers */
 	ports: {
-		SERVER_MASTER_SND: 1,
-		STOCK_MASTER_SND: 2,
+		SERVER_MASTER: 1,
+		STOCK_INFO: 2,
+		SHARE_CNTRL: 3,
+	},
+	batch: {
+		hack: "/harvester/hack.js",
+		weaken: "/harvester/weaken.js",
+		grow: "/harvester/grow.js",
+		share: "/harvester/share.js",
+	},
+
+	home: {
+		reserved: 100,
 	},
 };

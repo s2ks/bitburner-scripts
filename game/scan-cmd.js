@@ -12,7 +12,7 @@ export async function main(ns) {
 	await netscan(ns, (host, path) => {
 		let server = ns.getServer(host);
 
-		if(opts['root-only'] == true) {
+		if(opts['root'] == true) {
 			if(server.hasAdminRights == false) {
 				return;
 			}

@@ -1,6 +1,6 @@
 /** @param {NS} ns */
 export async function enterCommand(ns, cmd) {
-	const terminalInput = document.getElementById("terminal-input");
+	const terminalInput = eval("document").getElementById("terminal-input");
 
 	/* wait for the previous command to finish */
 	while(terminalInput.hasAttribute("disabled")) {

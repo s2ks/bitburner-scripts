@@ -1,7 +1,15 @@
-/** @param {NS} ns */
+import {config} from "/config.js";
+
 export async function install(ns, script, target, threads, ...args) {
-	var free = ns.getServerMaxRam(target) - ns.getServerUsedRam(target);
-	var threadAllow = Math.floor(free / ns.getScriptRam(script));
+	let free = ns.getServerMaxRam(target) - ns.getServerUsedRam(target);
+
+	if(target == "home") {
+		free -= config.home.reserved;
+	}
+
+	free = free > 0 ? free : 0;
+
+	const threadAllow = Math.floor(free / ns.getScriptRam(script));
 
 	if(threadAllow == 0) {
 		return 0;

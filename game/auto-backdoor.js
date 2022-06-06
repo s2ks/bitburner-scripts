@@ -30,6 +30,7 @@ export async function main(ns) {
 
 		cmd += `connect ${host.name};backdoor`;
 
+		ns.tprint(`Starting backdoor on ${host.name} --- press ^C to skip`);
 		await enterCommand(ns, cmd);
 	}
 	await enterCommand(ns, "home");

@@ -20,7 +20,7 @@ export const upload = async (file, path) => {
 	const payload = {
 		action: 'UPSERT',
 		filename: '',
-		code: btoa(content),
+		code: Buffer.from(content).toString("base64"),
 	};
 
 	if(dest) {

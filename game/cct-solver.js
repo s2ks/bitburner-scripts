@@ -2,14 +2,28 @@ const solvers = {
 	"Subarray with Maximum Sum": 	findMaxSum,
 	"Find Largest Prime Factor": 	findMaxPrimeFraction,
 	"Total Ways to Sum": 		findWaysToSumSolver,
+	"Total Ways to Sum II": 	solveWaysToSum2,
 	"Unique Paths in a Grid I": 	solveUniquePaths,
+	"Unique Paths in a Grid II": 	undefined,
 	"Spiralize Matrix": 		solveSpiralMatrix,
 	"Array Jumping Game": 		solveArrayJump,
-	"Total Ways to Sum II": 	solveWaysToSum2,
+	"Array Jumping Game II": 	undefined,
 	"HammingCodes: Encoded Binary to Integer": solveHammingCodes,
 	"HammingCodes: Integer to Encoded Binary": solveHammingEncode,
 	"Generate IP Addresses": 	solveGenerateIp,
 	"Shortest Path in a Grid": 	solveShortestPath,
+	"Find All Valid Math Expressions": solveValidMath,
+	"Proper 2-Coloring of a Graph": undefined,
+	"Algorithmic Stock Trader I": 	undefined,
+	"Algorithmic Stock Trader II": 	undefined,
+	"Algorithmic Stock Trader III": undefined,
+	"Algorithmic Stock Trader IV": 	undefined,
+	"Compression I: RLE Compression": undefined,
+	"Compression II: LZ Decompression": undefined,
+	"Compression III: LZ Compression": undefined,
+	"Minimum Path Sum in a Triangle": undefined,
+	"Sanitize Parentheses in Expression": undefined,
+	"Merge Overlapping Intervals": 	undefined,
 };
 
 export function autocomplete(data, arg) {
@@ -20,6 +34,48 @@ export function autocomplete(data, arg) {
 		"--info",
 		...data.servers,
 	];
+}
+
+export function solveValidMath(data) {
+	const str = data[0];
+	const want = data[1];
+	const ans = [];
+
+	const compute = (i, expr, sum, evl) => {
+		if(i == str.length) {
+			if(sum == want) {
+				ans.push(expr);
+			}
+			return;
+		}
+
+		/* Extract every possible substring from index \i\ to the end of the string */
+		for(let j = i; j < str.length; j++) {
+			const sub =  str.substring(i, j + 1);
+
+			/* Digits are not allowed to have a leading 0 */
+			if(sub[0] == "0" && sub.length > 1) {
+				break;
+			}
+
+			const n = parseInt(sub);
+
+			/* As it turns out, 'eval()' is really slow, so it's faster to do it manually. */
+			if(i == 0) {
+				compute(j + 1, `${sub}`, n, n);
+			} else {
+				compute(j + 1, `${expr}+${sub}`, sum + n, n);
+				compute(j + 1, `${expr}-${sub}`, sum - n, -n);
+
+				/* The current evaluation was already added in a previous call, so
+				 * subtract it from the sum because multiplication takes precedence. */
+				compute(j + 1, `${expr}*${sub}`, sum + evl*(n-1), evl * n);
+			}
+		}
+	}
+
+	compute(0);
+	return ans;
 }
 
 /* You are trying to find the shortest path to the bottom-right corner of the grid, but
@@ -55,13 +111,20 @@ export function autocomplete(data, arg) {
  *	   [0,0,0,0,1,0,0,0,0,0],
  *	   [1,1,0,0,1,0,0,0,0,0]] */
 
-/* FIXME optimise */
 export function solveShortestPath(data) {
 	const height = data.length
 	const width = data[0].length;
 
-	/* In order to mark where we've been we can just set the coordinates in the grid to 1 */
 	const grid = data;
+	let ans = "";
+
+
+	/* Mark the 'walls' as -1 instead of 1 */
+	for(let i = 0; i < height; i++) {
+		for(let j = 0; j < width; j++) {
+			grid[i][j] = -grid[i][j];
+		}
+	}
 
 	const direction = {};
 	direction['U'] = {dx:  0, dy: -1};
@@ -75,66 +138,35 @@ export function solveShortestPath(data) {
 	 * Left: 	T(-1,  0)
 	 * */
 
-	const clone = (data) => {
-		return JSON.parse(JSON.stringify(data));
-	}
-
-	const solver = (grid, pos, path) => {
+	const solver = (pos, path, depth) => {
 		if((pos.x < 0 || pos.x >= width) || (pos.y < 0 || pos.y >= height)) {
-			/* We're out of bounds */
-			return '';
-		} else if(grid[pos.y][pos.x] == 1) {
-			/* We're not allowed to go though here */
-			return '';
-		} else if(grid[pos.y][pos.x] == -1) {
-			/* We've been here already */
-			return null;
+			return;
+		} else if(grid[pos.y][pos.x] != 0 && grid[pos.y][pos.x] < depth) {
+			return;
 		}
 
 		if(pos.x == (width - 1) && pos.y == (height - 1)) {
-			return path;
-		}
-
-
-		/* Mark that we've been here, for now */
-		grid[pos.y][pos.x] = -1;
-
-		//console.log(clone(grid));
-
-		let ipath = [];
-		let doUnmark = false;
-		for(const d in direction)  {
-			const res = solver(grid, {
-				x: pos.x + direction[d].dx,
-				y: pos.y + direction[d].dy,
-			}, path + d);
-
-			if(res == null) {
-				/* We've run a circle, don't mistake it for a dead end */
-				doUnmark = true;
-			} else {
-				ipath.push(res);
+			if(ans == "" || path.length < ans.length) {
+				ans = path;
 			}
 		}
 
+		/* Leave bread crumbs in the form of the recursion depth at which
+		 * this position was visited. So we don't revisit locations that
+		 * were already visited by others down the call stack. */
+		grid[pos.y][pos.x] = depth;
 
-		ipath.sort((a, b) => {
-			return a.length - b.length;
-		});
-
-		ipath = ipath.filter(p => p.length > 0);
-		/* If all directions return empty then we've reached a dead end and we should mark it for future passes */
-		if(ipath.length > 0 || doUnmark) {
-			/* If this doesn't lead to a dead end then we 'unmark' it for future passes */
-			grid[pos.y][pos.x] = 0;
-		} else {
-			ipath[0] = '';
+		for(const d in direction) {
+			solver({
+				x: pos.x + direction[d].dx,
+				y: pos.y + direction[d].dy,
+			}, `${path}${d}`, depth + 1);
 		}
+	};
 
-		return ipath[0] ? ipath[0] : '';
-	}
+	solver({x: 0, y: 0}, "", 1);
 
-	return solver(grid, {x: 0, y: 0}, '');
+	return ans;
 }
 
 /*  Generate valid 'IP address' strings.
@@ -436,15 +468,17 @@ export function solveSpiralMatrix(data) {
 
 	/*
 	*
-	* right 	-> T(1, 0)
-	* down 		-> T(0, 1)
-	* left 		-> T(-1, 0)
-	* up 		-> T(0, -1)
+	* right   ───►  T(1, 0)
+	* down 	  ───►  T(0, 1)
+	* left 	  ───►  T(-1, 0)
+	* up 	  ───►  T(0, -1)
 	*
-	* x 	1 		0 		-1 		 0
-	* 		->		->		->
-	* y 	0 		1 		 0 		-1
-	*
+	*  ┌─────────────────────────────────────────┐
+	*  │ x        1 ──┐     0    ┌►  -1 ──┐    0 │
+	*  │              │          │        │      │
+	*  │ y        0   └──►  1 ───┘    0   └─► -1 │
+	*  └─────────────────────────────────────────┘
+        *
 	* Notice how dx and dy alternate between being zero and non-zero and
 	* notice how a non-zero value in y gets flipped.
 	*
@@ -699,7 +733,12 @@ export async function main(ns) {
 			ns.exit();
 		}
 
+		console.log(`Starting solver for ${type} (${file} on ${host})`);
+		ns.tprintf(`Attempting to solve ${file} on ${host} (${type})`);
+
+		const start = Date.now();
 		const solution = solvers[type](data);
+		const elapsed = Date.now() - start;
 
 		if(answer) {
 			const resp = ns.codingcontract.attempt(solution, file, host, {returnReward: true});
@@ -711,6 +750,8 @@ export async function main(ns) {
 		} else {
 			ns.tprint(solution);
 		}
+
+		ns.tprint(`Generating solution for "${type}" took ${ns.tFormat(elapsed, true)}`);
 	} else {
 		ns.tprintf("UNKNOWN CONTRACT TYPE: %s", type);
 	}

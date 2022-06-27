@@ -116,7 +116,11 @@ const stats = {
 				maxAvail = this.ns.getServerMaxRam(host) - config.home.reserved;
 				maxAvail = maxAvail < 0 ? 0 : maxAvail;
 			} else {
-				maxAvail = this.ns.getServerMaxRam(host);
+				try {
+					maxAvail = this.ns.getServerMaxRam(host);
+				} catch {
+					continue;
+				}
 			}
 
 			ramAvail += maxAvail;
@@ -129,7 +133,13 @@ const stats = {
 		let ramReq = 0;
 
 		for(const target of this.targets) {
-			const server = this.ns.getServer(target);
+			let server;
+
+			try {
+				server = this.ns.getServer(target);
+			} catch {
+				continue;
+			}
 			const hackAmount = server.moneyMax * 0.99;
 
 			const hackThreads = this.ns.hackAnalyzeThreads(target, hackAmount);
@@ -165,18 +175,30 @@ const stats = {
 
 			console.log(`THREAD_LIMITED = ${this.thread_limited}`);
 
-			//console.log(`max ram required ${stats.ns.nFormat(stats.computeMaxRamReq() * 1e9, '0.0 b')} max ram available ` +
-				//`${stats.ns.nFormat(stats.maxRamAvail() * 1e9, '0.0 b')}`);
+			const ramReq = stats.computeMaxRamReq();
+			const maxAvail = stats.maxRamAvail();
+
+			//console.log(`Predicted total ram amount required ${stats.ns.nFormat(ramReq * 1e9, '0.0 b')}`);
+			//console.log(`Total maximum theoretical ram available ${stats.ns.nFormat(maxAvail * 1e9, '0.0 b')}`);
+
+			const netReq = ramReq - maxAvail;;
+
+			if(netReq < 0) {
+				/* Abnormal mode of ooperation */
+				this.thread_limited = false;
+				return;
+			}
 
 			const data = {
 				mesg: "THREAD_LIMITED",
-				ramReq: (stats.computeMaxRamReq() - stats.maxRamAvail()) / stats.ns.getPurchasedServerLimit(),
+				ramReq: (netReq) / stats.ns.getPurchasedServerLimit(),
 			};
-
 
 			await stats.ns.writePort(config.ports.SERVER_MASTER, btoa(JSON.stringify(data)));
 
+
 			this.last_upgrade = Date.now();
+			this.thread_limited = false;
 		}
 	},
 
@@ -263,8 +285,8 @@ async function installBatch(ns, batch, hosts) {
 		console.warn(`bal <= 0 for ${target}`);
 	}
 
-	/* we can recover from bal = 0 */
-	bal = bal > 0 ? bal : 1;
+	/* we can recover from bal = 0 pretend we are at 1% balance to keep the number of threads used consistent */
+	bal = bal > 0 ? bal : server.moneyMax * 0.01;
 
 	start = false;
 
@@ -488,7 +510,16 @@ export async function main(ns) {
 
 	await netscan(ns, host => {
 		if(ns.hasRootAccess(host)) {
-			ns.kill(config.batch.hack, host);
+			const scripts = ns.ps(host);
+
+			for(const proc of scripts) {
+				switch(true) {
+					case proc.filename == config.batch.hack:
+					case proc.filename == config.batch.grow:
+					case proc.filename == config.batch.weaken:
+						ns.kill(proc.pid, host);
+				}
+			}
 		}
 	});
 
@@ -498,10 +529,14 @@ export async function main(ns) {
 		await stats.update();
 
 		for(const target of stats.hackTargets) {
-			const batch = prepareBatch(ns, target);
+			try {
+				const batch = prepareBatch(ns, target);
 
-			if(batch) {
-				await installBatch(ns, batch, stats.hosts);
+				if(batch) {
+					await installBatch(ns, batch, stats.hosts);
+				}
+			} catch {
+				continue;
 			}
 
 			await ns.sleep(0);

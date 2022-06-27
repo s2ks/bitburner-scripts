@@ -5,6 +5,7 @@ const SOLVER = "cct-solver.js";
 export function autocomplete(data, arg) {
 	return [
 		"--solve",
+		"--info",
 	];
 }
 
@@ -13,6 +14,7 @@ export async function main(ns) {
 
 	const opt = ns.flags([
 		["solve", false], //Attempt to solve the contracts that we find
+		["info", true],
 	]);
 
 	var contracts = {};
@@ -48,11 +50,14 @@ export async function main(ns) {
 		ns.exit();
 	}
 
-	for(const host in contracts) {
-		ns.tprintf("%s: has %d contract%s\n\t[%v]",
-			host,
-			contracts[host].length,
-			contracts[host].length == 1 ? "" : "s",
-			contracts[host]);
+	if(opt["info"] == true) {
+		for(const host in contracts) {
+			ns.tprintf(`${host} has ${contracts[host].length} contract${contracts[host].length == 1 ? "" : "s"}:`);
+
+			for(const cct of contracts[host]) {
+				const type = ns.codingcontract.getContractType(cct, host);
+				ns.tprintf(`\t${cct}: ${type}`);
+			}
+		}
 	}
 }

@@ -15,6 +15,7 @@ export async function main(ns) {
 
 	ns.disableLog("disableLog");
 	ns.disableLog("sleep");
+	ns.disableLog("getServerMaxRam");
 
 	var start = Date.now();
 	var profit = 0;
@@ -49,6 +50,12 @@ export async function main(ns) {
 				continue;
 			}
 
+			if(wantRam < 0) {
+				ns.print("Invalid ram request amount specified");
+				ns.clearPort(config.ports.SERVER_MASTER);
+				continue;
+			}
+
 			const srvList = ns.getPurchasedServers();
 
 			srvList.sort((a, b) => {
@@ -78,6 +85,7 @@ export async function main(ns) {
 
 				if(money >= cost) {
 					if(srvList.length >= srvLimit) {
+						ns.killall(srvList[0]);
 						ns.deleteServer(srvList[0]);
 					}
 

@@ -2,14 +2,14 @@ import {names} from "/lib/names.js";
 
 const stats = {
 	gangType: '',
-	update: (ns) => {
 
+	init: function(ns) {
+		this.ns = ns;
 	},
 };
 
 function updateTasks(ns) {
 	
-
 }
 
 
@@ -34,9 +34,30 @@ function updateTasks(ns) {
  * 		ascend()
  *
  *
+ * Stages of a combat gang:
+ * 	1: gain reputation -> Terrorism earns the most rep but we need to gain
+ * 	more rep than wanted level, so at the start choose an activity that gains more rep than wanted
+ *
+ * 	2: Train combat: we need to train gang member's combat skill to increase their effectiveness in whatever
+ * 	activity they are doing.
+ *
+ * 	3: Once we have max rep and max gang member count, and all gang members have sufficient combat skill and
+ * 	additionally when we have enough money we can kit them out -> Augmentations should have priority because
+ * 	they persist across ascensions. After they are kitted out we can start territory warfare until we have
+ * 	100% territory.
+ *
+ * 	4: Once we have 100% territory we can start human trafficking -> it earns the most money.
+ *
+ * 	5: If we make enough money and have a high enough rep and discount level we can ascend gang members at will
  *
  *  */
 export async function main(ns) {
+	while(ns.gang.inGang() == false) {
+		await sleep(5000);
+	}
+
+	stats.init(ns);
+
 	while(1) {
 		//stats.update(ns);
 		updateTasks(ns);
